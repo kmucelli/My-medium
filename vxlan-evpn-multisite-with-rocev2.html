@@ -1,0 +1,2679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building a Cisco NX-OS VXLAN EVPN Multi-Site Lab with RoCEv2</title>
+    <style>
+        /* Base & Typography */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #242424;
+            --text-light: #555555;
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --mono-font: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            --link-color: #1a8917;
+            --code-bg: #f6f8fa;
+            --code-border: #e1e4e8;
+            --border-color: #eaeaea;
+            --amber: #f59f00;
+            --amber-bg: #fffbf0;
+            --max-width: 920px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            line-height: 1.7;
+            font-size: 1.125rem;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 4rem 20px;
+        }
+
+        /* Header */
+        header {
+            margin-bottom: 3rem;
+            text-align: left;
+        }
+
+        h1.title {
+            font-size: 2.5rem;
+            line-height: 1.2;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #111;
+        }
+
+        p.deck {
+            font-size: 1.25rem;
+            color: var(--text-light);
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            font-weight: 400;
+        }
+
+        .meta {
+            font-size: 0.95rem;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Headings */
+        h2 {
+            font-size: 1.8rem;
+            margin-top: 3.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+            color: #111;
+        }
+
+        h3 {
+            font-size: 1.3rem;
+            margin-top: 2.5rem;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+
+        /* Text Elements */
+        p, ul, ol {
+            margin-bottom: 1.5rem;
+        }
+
+        ul, ol {
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        hr {
+            border: 0;
+            border-top: 1px solid var(--border-color);
+            margin: 3rem 0;
+        }
+
+        a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Callouts / Blockquotes */
+        .callout {
+            padding: 1.2rem 1.5rem;
+            border-left: 4px solid #dcdcdc;
+            background: #fafafa;
+            margin: 2rem 0;
+            border-radius: 0 4px 4px 0;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .callout.warning {
+            border-left-color: var(--amber);
+            background: var(--amber-bg);
+        }
+
+        .callout.warning strong {
+            color: #b97500;
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 1.05rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Tables */
+        .table-wrapper {
+            margin: 2rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+            table-layout: fixed;
+            white-space: normal;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+            vertical-align: top;
+            overflow-wrap: anywhere;
+        }
+
+        td code, th code {
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        th {
+            background-color: var(--code-bg);
+            font-weight: 600;
+            color: #24292e;
+        }
+
+        tr:nth-child(even) {
+            background-color: #fbfbfc;
+        }
+
+        /* Troubleshooting table: wrap instead of scroll */
+        .tshoot-table table { white-space: normal; table-layout: fixed; }
+        .tshoot-table th, .tshoot-table td { vertical-align: top; }
+        .tshoot-table th:nth-child(1), .tshoot-table td:nth-child(1) { width: 42%; }
+        .tshoot-table th:nth-child(2), .tshoot-table td:nth-child(2) { width: 32%; }
+        .tshoot-table th:nth-child(3), .tshoot-table td:nth-child(3) { width: 26%; }
+        .tshoot-table code { white-space: normal; overflow-wrap: anywhere; }
+
+        /* Code & Preformatted */
+        code {
+            font-family: var(--mono-font);
+            font-size: 0.85em;
+            background-color: var(--code-bg);
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+        }
+
+        .code-block-wrapper {
+            position: relative;
+            margin: 2rem 0;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--code-border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 0;
+            line-height: 1.5;
+            font-family: var(--mono-font);
+            font-size: 0.85rem;
+            color: #24292e;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: 1em;
+        }
+
+        /* Copy Button */
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ffffff;
+            border: 1px solid var(--code-border);
+            color: var(--text-light);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-family);
+        }
+
+        .copy-btn:hover {
+            color: var(--text-color);
+            border-color: #c6cbd1;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .copy-btn.copied {
+            background: #e6ffed;
+            color: #1a7f37;
+            border-color: #1a7f37;
+        }
+
+        /* Syntax Highlight */
+        .nx-comment {
+            color: #6a737d;
+            font-style: italic;
+            opacity: 0.8;
+        }
+
+        /* Table of Contents */
+        .toc {
+            background: #fafafa;
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: 6px;
+            margin: 2rem 0 3rem 0;
+            font-size: 1rem;
+        }
+
+        .toc h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .toc li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Topology figure */
+        .topo-figure {
+            margin: 2rem 0 2.5rem 0;
+            text-align: center;
+        }
+        .topo-figure svg {
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #fff;
+        }
+        .topo-figure figcaption {
+            margin-top: 0.9rem;
+            font-size: 0.9rem;
+            color: #6a737d;
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        /* Scroll-to-top button */
+        #scrollTopBtn {
+            position: fixed;
+            right: 28px;
+            bottom: 28px;
+            width: 46px;
+            height: 46px;
+            border: none;
+            border-radius: 50%;
+            background: #1a8917;
+            color: #fff;
+            font-size: 1.4rem;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s;
+            z-index: 999;
+        }
+        #scrollTopBtn.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        #scrollTopBtn:hover {
+            background: #156d12;
+        }
+        #scrollTopBtn:focus-visible {
+            outline: 2px solid #156d12;
+            outline-offset: 3px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1.title {
+                font-size: 2rem;
+            }
+            .container {
+                padding: 2rem 15px;
+            }
+            #scrollTopBtn {
+                right: 16px;
+                bottom: 16px;
+            }
+        }
+        /* Tab interface */
+        .tab-bar {
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid var(--border-color);
+            margin: 2.5rem 0 0 0;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background: var(--bg-color, #fff);
+        }
+        .tab-btn {
+            appearance: none;
+            border: none;
+            background: none;
+            padding: 0.7rem 1.4rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #6a737d;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+        .tab-btn:hover { color: #1a1a1a; }
+        .tab-btn.active {
+            color: #1a8917;
+            border-bottom-color: #1a8917;
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Full-config two-column layout */
+        .config-layout {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+        }
+        .config-nav {
+            position: sticky;
+            top: 72px;
+            flex: 0 0 160px;
+            border-right: 1px solid var(--border-color);
+            padding-right: 1rem;
+        }
+        .config-nav a {
+            display: block;
+            padding: 0.35rem 0.5rem;
+            color: #6a737d;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+        .config-nav a:hover {
+            background: #f0f7f0;
+            color: #1a8917;
+        }
+        .config-nav-group {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9aa0a6;
+            margin: 1.2rem 0 0.3rem;
+            font-weight: 700;
+        }
+        .config-nav-group:first-child { margin-top: 0; }
+        .config-main { flex: 1; min-width: 0; }
+        .config-main section { scroll-margin-top: 20px; }
+        .config-main h3 { margin-top: 2rem; }
+        .config-main section:first-child h3 { margin-top: 0; }
+        .cfg-as {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #1a8917;
+            background: #eaf5ea;
+            padding: 2px 8px;
+            border-radius: 10px;
+            vertical-align: middle;
+            margin-left: 6px;
+        }
+        @media (max-width: 768px) {
+            .config-layout { flex-direction: column; }
+            .config-nav {
+                position: static;
+                flex-basis: auto;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 0 0 1rem 0;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.3rem;
+                width: 100%;
+            }
+            .config-nav-group { width: 100%; margin-top: 0.6rem; }
+        }
+
+        /* Guide two-column layout */
+        .guide-layout {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+        }
+        .guide-nav {
+            position: sticky;
+            top: 72px;
+            flex: 0 0 210px;
+            border-right: 1px solid var(--border-color);
+            padding-right: 1rem;
+            max-height: calc(100vh - 92px);
+            overflow-y: auto;
+        }
+        .guide-nav-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #24292e;
+            margin: 0 0 0.6rem;
+        }
+        .guide-nav a {
+            display: block;
+            padding: 0.3rem 0.5rem;
+            color: #6a737d;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            line-height: 1.3;
+            font-weight: 600;
+        }
+        .guide-nav a:hover {
+            background: #f0f7f0;
+            color: #1a8917;
+        }
+        .guide-nav-group {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9aa0a6;
+            margin: 1.1rem 0 0.3rem;
+            font-weight: 700;
+        }
+        .guide-main { flex: 1; min-width: 0; }
+        .guide-main h2 { scroll-margin-top: 20px; }
+        .guide-main h2:first-child { margin-top: 0; }
+        @media (max-width: 768px) {
+            .guide-layout { flex-direction: column; }
+            .guide-nav {
+                position: static;
+                flex-basis: auto;
+                max-height: none;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 0 0 1rem 0;
+                width: 100%;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1 class="title">Building a Cisco NX-OS VXLAN EVPN Multi-Site Lab with RoCEv2</h1>
+        <p class="deck">A hands-on walkthrough for configuring a VXLAN EVPN Multi-Site Lab, achieving lossless RDMA over Ethernet and troubleshooting the pieces that tend to break along the way.</p>
+        <div class="meta">
+            <span>A hands-on walkthrough</span> &middot;
+            <span>Cisco NX-OS 9000v</span> &middot;
+            <span>~15 min read</span>
+        </div>
+        <div class="meta">
+            <span>By <strong>Klaus Mucelli</strong>, CCIE DC No. 69110</span> &middot;
+            <span><a href="mailto:klausmucelli15@gmail.com">klausmucelli15@gmail.com</a></span>
+        </div>
+    </header>
+
+    <div class="tab-bar" role="tablist">
+        <button class="tab-btn active" data-tab="guide" role="tab">Guide</button>
+        <button class="tab-btn" data-tab="config" role="tab">Full Config</button>
+    </div>
+
+    <div id="tab-guide" class="tab-panel active">
+
+    <div class="guide-layout">
+    <nav class="guide-nav" aria-label="Guide contents">
+        <p class="guide-nav-title">Contents</p>
+        <p class="guide-nav-group">Concepts</p>
+        <a href="#intro">1. Introduction to Multi-Site</a>
+        <a href="#bgw-explained">2. The Border Gateway Explained</a>
+        <a href="#topology">3. Topology and Roles</a>
+        <a href="#addressing">4. Addressing Plan</a>
+        <p class="guide-nav-group">Build</p>
+        <a href="#step-1-spine">5. Spine Configuration</a>
+        <a href="#step-2-tenant">6. Tenant Provisioning</a>
+        <a href="#step-3-leaf">7. Leaf (VTEP) Configuration</a>
+        <a href="#step-4-bgw">8. Border Gateway Configuration</a>
+        <a href="#step-5-hosts">9. Attach Hosts &amp; Test</a>
+        <p class="guide-nav-group">Operate</p>
+        <a href="#verification">10. Verification Cheat-Sheet</a>
+        <a href="#rocev2">11. RoCEv2 Lossless Fabric: DCQCN</a>
+        <a href="#troubleshooting">12. Troubleshooting</a>
+        <a href="#wrap-up">13. Wrap-up</a>
+    </nav>
+
+    <div class="guide-main">
+
+     <h2 id="intro">1. Introduction to Multi-Site</h2>
+     <p>Most modern data centers run on <strong>VXLAN with BGP EVPN</strong>. VXLAN gives you a MAC-in-UDP overlay, so a Layer 2 segment can ride across a fully routed Layer 3 network, and BGP EVPN is the control plane that tells every VTEP (VXLAN Tunnel End Point) where all the MACs and IPs actually live. That split is powerful: tenants get their own address space, and the physical fabric underneath stays simple leaf-and-spine. The catch is that one big fabric is also one big blast radius. Broadcast, unknown-unicast and multicast (BUM) flooding, control-plane churn, and the occasional fat-fingered config all spread freely because nothing stops them at a boundary.</p>
+     <p>That is the problem <strong>VXLAN EVPN Multi-Site</strong> is built to solve. Instead of one sprawling fabric, you run several smaller, independent ones and join them at a single, well-controlled hand-off. Each site keeps its own underlay IGP, its own BGP autonomous system, and its own overlay, and it handles its BUM flooding locally. The piece doing the stitching is the <strong>Border Gateway (BGW)</strong>. It sits at the edge of a site, terminates the local overlay, re-originates EVPN routes toward the far side, and rewrites the VXLAN next-hop so that failures, flooding, and route churn stop at the site edge instead of leaking across the whole network. You end up scaling out by adding sites, not by adding risk, and tenants still see stretched Layer 2 and Layer 3 as if it were one fabric.</p>
+     <p>We are going to build this from scratch. First we stand up two independent fabrics, <strong>DC1 (AS&nbsp;65001)</strong> and <strong>DC2 (AS&nbsp;65002)</strong>, then stitch them together back-to-back over a Data Center Interconnect (DCI) using two eBGP sessions: one IPv4 unicast session for the underlay and one L2VPN EVPN session for the overlay. Once traffic flows between sites, we push things further and build a <strong>RoCEv2 (DCQCN)</strong> lossless class on top of the same fabric, mixing PFC with ECN and WRED so that latency-sensitive RDMA traffic never has to drop a packet. Everything here is real Cisco NX-OS, copied verbatim, so you can follow along on Nexus 9000 gear or a lab and land on the exact same result.</p>
+
+
+    <h2 id="bgw-explained">2. The Border Gateway Explained</h2>
+    <p>Before diving into the CLI, it's crucial to understand the linchpin of this architecture: the <strong>Border Gateway (BGW)</strong>. The BGW terminates the overlay at the site edge, re-originates EVPN routes between the local fabric and the remote site, and rewrites the next-hop so remote VTEPs point at the local site's BGW instead of the real originating VTEP.</p>
+    <p>It leverages two distinct Loopbacks: the PIP (Primary IP), which is its own VTEP loopback used for locally-originated routes and BUM, and the MS-VIP (Multi-Site Virtual IP), an anycast VTEP loopback shared by all BGWs of a site. By configuring <code>evpn multisite fabric-tracking</code> on links facing the local spine and <code>evpn multisite dci-tracking</code> on links facing the DCI, the BGW intelligently manages its VIP advertisement.</p>
+    <p>We also use per-L2VNI <code>multisite ingress-replication</code> to make the BGW head-end-replicate BUM to the remote site's VIP. Crucially, the <code>peer-type fabric-external</code> command on the inter-site eBGP neighbor enables the Multi-Site next-hop rewrite, while <code>rewrite-evpn-rt-asn</code> dynamically adjusts the Route Target ASN mismatch between our two distinct BGP domains.</p>
+
+    <h2 id="topology">3. Topology and Roles</h2>
+    <p>Our architecture consists of two symmetric data centers. DC1 acts as Site 1 (AS 65001) with SPINE1, LEAF1, LEAF2, and BGW1. DC2 acts as Site 2 (AS 65002) with SPINE2, LEAF3, and BGW2.</p>
+    <p>The two sites are stitched back-to-back over a Data Center Interconnect (DCI). Two eBGP sessions ride this DCI: an IPv4 unicast session for underlay reachability, and an L2VPN EVPN session for the overlay.</p>
+
+     <figure class="topo-figure">
+        <svg viewBox="0 0 760 430" role="img" aria-label="VXLAN EVPN Multi-Site topology: DC1 (AS 65001) and DC2 (AS 65002) joined back-to-back by BGW1 and BGW2" xmlns="http://www.w3.org/2000/svg">
+            <!-- Site backgrounds -->
+            <rect x="8" y="8" width="367" height="414" rx="6" fill="#5ed17f" stroke="#3fae62" stroke-width="1.5"/>
+            <rect x="385" y="8" width="367" height="414" rx="6" fill="#f4bd52" stroke="#d99f30" stroke-width="1.5"/>
+            <text x="30" y="38" font-size="15" font-weight="700" fill="#0d3b1e">BGP-AS 65001</text>
+            <text x="730" y="38" font-size="15" font-weight="700" fill="#5a3d05" text-anchor="end">BGP-AS 65002</text>
+
+            <!-- ===== Links (drawn first, under nodes) ===== -->
+            <g stroke="#2f3b30" stroke-width="1.6" fill="none">
+                <line x1="300" y1="58" x2="460" y2="58"/>
+                <line x1="288" y1="66" x2="188" y2="126"/>
+                <line x1="167" y1="150" x2="122" y2="214"/>
+                <line x1="183" y1="150" x2="233" y2="214"/>
+                <line x1="110" y1="240" x2="110" y2="320"/>
+                <line x1="245" y1="240" x2="245" y2="320"/>
+                <line x1="472" y1="66" x2="573" y2="126"/>
+                <line x1="585" y1="150" x2="585" y2="214"/>
+                <line x1="577" y1="240" x2="545" y2="320"/>
+                <line x1="593" y1="240" x2="640" y2="320"/>
+            </g>
+
+            <!-- ===== Interface labels ===== -->
+            <g font-size="8.5" fill="#1b241c" font-family="monospace">
+                <text x="316" y="52">E1/3</text><text x="444" y="52" text-anchor="end">E1/3</text>
+                <text x="278" y="76">E1/1</text><text x="196" y="118">E1/3</text>
+                <text x="150" y="180">E1/1</text><text x="196" y="180">E1/2</text>
+                <text x="118" y="205">E1/1</text><text x="253" y="205">E1/1</text>
+                <text x="115" y="262">E1/5</text><text x="250" y="262">E1/5</text>
+                <text x="90" y="315">E0</text><text x="225" y="315">E0</text>
+                <text x="482" y="76">E1/1</text><text x="558" y="118" text-anchor="end">E1/2</text>
+                <text x="593" y="180">E1/1</text>
+                <text x="558" y="262" text-anchor="end">E1/5</text><text x="600" y="262">E1/4</text>
+                <text x="525" y="315">E0</text><text x="648" y="315">E0</text>
+            </g>
+
+            <!-- ===== Switch nodes ===== -->
+            <g font-size="10.5" font-weight="700" fill="#0d2114" text-anchor="middle">
+                <g><rect x="280" y="42" width="40" height="26" rx="4" fill="#fff" stroke="#2f3b30" stroke-width="1.4"/><text x="300" y="82">BGW1</text></g>
+                <g><rect x="155" y="124" width="40" height="26" rx="4" fill="#fff" stroke="#2f3b30" stroke-width="1.4"/><text x="175" y="164">SPINE1</text></g>
+                <g><rect x="90" y="214" width="40" height="26" rx="4" fill="#fff" stroke="#2f3b30" stroke-width="1.4"/><text x="110" y="254">LEAF1</text></g>
+                <g><rect x="225" y="214" width="40" height="26" rx="4" fill="#fff" stroke="#2f3b30" stroke-width="1.4"/><text x="245" y="254">LEAF2</text></g>
+                <g><rect x="440" y="42" width="40" height="26" rx="4" fill="#fff" stroke="#2f3b30" stroke-width="1.4"/><text x="460" y="82">BGW2</text></g>
+                <g><rect x="565" y="124" width="40" height="26" rx="4" fill="#fff" stroke="#2f3b30" stroke-width="1.4"/><text x="585" y="164">SPINE2</text></g>
+                <g><rect x="565" y="214" width="40" height="26" rx="4" fill="#fff" stroke="#2f3b30" stroke-width="1.4"/><text x="585" y="254">LEAF3</text></g>
+            </g>
+
+            <!-- ===== Host nodes ===== -->
+            <g font-size="9" font-weight="700" fill="#fff" text-anchor="middle">
+                <g><rect x="77" y="320" width="66" height="34" rx="3" fill="#d33d3d" stroke="#8f2020" stroke-width="1.2"/><text x="110" y="341">RED-User</text><text x="110" y="351">DC1</text></g>
+                <g><rect x="212" y="320" width="66" height="34" rx="3" fill="#2f7fc4" stroke="#1c4f7d" stroke-width="1.2"/><text x="245" y="341">BLUE-User</text><text x="245" y="351">DC1</text></g>
+                <g><rect x="512" y="320" width="66" height="34" rx="3" fill="#d33d3d" stroke="#8f2020" stroke-width="1.2"/><text x="545" y="341">RED-User</text><text x="545" y="351">DC2</text></g>
+                <g><rect x="607" y="320" width="66" height="34" rx="3" fill="#2f7fc4" stroke="#1c4f7d" stroke-width="1.2"/><text x="640" y="341">BLUE-User</text><text x="640" y="351">DC2</text></g>
+            </g>
+        </svg>
+        <figcaption>VXLAN EVPN Multi-Site: two independent fabrics (DC1 / AS&nbsp;65001 and DC2 / AS&nbsp;65002) stitched back-to-back over the DCI via BGW1 (E1/3) &harr; BGW2 (E1/3). Each site runs its own underlay, spine route-reflector, and leaf VTEPs.</figcaption>
+    </figure>
+
+    <h2 id="addressing">4. Addressing Plan</h2>
+    <p>To keep our lab clean and scalable, we define a strict addressing plan. Loopbacks handle VTEP termination and BGP peering, while point-to-point /31 links build the OSPF underlay.</p>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Node</th>
+                    <th>lo0 (RID/BGP)</th>
+                    <th>lo1 (PIP/VTEP)</th>
+                    <th>lo100 (MS-VIP)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>SPINE1</td><td>10.1.0.1</td><td>n/a</td><td>n/a</td></tr>
+                <tr><td>LEAF1</td><td>10.1.0.11</td><td>10.1.1.11</td><td>n/a</td></tr>
+                <tr><td>LEAF2</td><td>10.1.0.12</td><td>10.1.1.12</td><td>n/a</td></tr>
+                <tr><td>BGW1</td><td>10.1.0.21</td><td>10.1.1.21</td><td>10.1.100.1</td></tr>
+                <tr><td>SPINE2</td><td>10.2.0.1</td><td>n/a</td><td>n/a</td></tr>
+                <tr><td>LEAF3</td><td>10.2.0.13</td><td>10.2.1.13</td><td>n/a</td></tr>
+                <tr><td>BGW2</td><td>10.2.0.22</td><td>10.2.1.22</td><td>10.2.100.1</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Link</th>
+                    <th>Subnet</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>SPINE1 to LEAF1</td><td>10.1.10.0/31</td><td>DC1 OSPF area 0</td></tr>
+                <tr><td>SPINE1 to LEAF2</td><td>10.1.10.2/31</td><td>DC1 OSPF area 0</td></tr>
+                <tr><td>SPINE1 to BGW1</td><td>10.1.10.4/31</td><td>DC1 OSPF area 0 (BGW fabric link)</td></tr>
+                <tr><td>SPINE2 to LEAF3</td><td>10.2.10.0/31</td><td>DC2 OSPF area 0</td></tr>
+                <tr><td>SPINE2 to BGW2</td><td>10.2.10.2/31</td><td>DC2 OSPF area 0 (BGW fabric link)</td></tr>
+                <tr><td>BGW1 to BGW2 (DCI)</td><td>172.16.1.0/31</td><td>eBGP, NOT in OSPF</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tenant</th>
+                    <th>VRF</th>
+                    <th>L3VNI</th>
+                    <th>VLAN</th>
+                    <th>L2VNI</th>
+                    <th>Subnet (anycast GW)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>RED</td><td>RED</td><td>50001</td><td>10</td><td>10010</td><td>192.168.10.1/24</td></tr>
+                <tr><td>RED</td><td>RED</td><td>50001</td><td>20</td><td>10020</td><td>192.168.20.1/24</td></tr>
+                <tr><td>BLUE</td><td>BLUE</td><td>50002</td><td>30</td><td>10030</td><td>192.168.30.1/24</td></tr>
+                <tr><td>BLUE</td><td>BLUE</td><td>50002</td><td>40</td><td>10040</td><td>192.168.40.1/24</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p>Our tenant model uses L3VNI core VLANs (VLAN 3900 for RED <code>vn-segment 50001</code>, and VLAN 3901 for BLUE <code>vn-segment 50002</code>). We configure the Anycast-gateway-mac <code>0000.00aa.aaaa</code> identically across the entire fabric to enable seamless virtual machine mobility.</p>
+
+    <hr>
+
+    <h2 id="step-1-spine">5. Step 1: Spine Configuration</h2>
+    <p>With our blueprint in hand, we start by provisioning the Spines in each site. The spine acts as an OSPF underlay transit node and the EVPN Route-Reflector for the local fabric. It does not run VXLAN/VTEP configurations itself.</p>
+    <p>Here is the baseline configuration for SPINE1 in DC1 (AS 65001):</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>feature ospf
+feature bgp
+feature nv overlay
+nv overlay evpn
+
+interface loopback0
+  ip address 10.1.0.1/32
+  ip router ospf UNDERLAY area 0.0.0.0
+
+! to LEAF1
+interface Ethernet1/1
+  no switchport
+  ip address 10.1.10.0/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+! to LEAF2
+interface Ethernet1/2
+  no switchport
+  ip address 10.1.10.2/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+! to BGW1
+interface Ethernet1/3
+  no switchport
+  ip address 10.1.10.4/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.1.0.1
+
+router bgp 65001
+  router-id 10.1.0.1
+  address-family l2vpn evpn
+    retain route-target all
+  template peer FABRIC-RR
+    remote-as 65001
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+      route-reflector-client
+  neighbor 10.1.0.11
+    inherit peer FABRIC-RR
+  neighbor 10.1.0.12
+    inherit peer FABRIC-RR
+  neighbor 10.1.0.21
+    inherit peer FABRIC-RR</code></pre>
+    </div>
+
+    <div class="callout">
+        <strong>SPINE2 (DC2, AS 65002) delta:</strong> same pattern with lo0 10.2.0.1; links Eth1/1 10.2.10.0/31 (to LEAF3), Eth1/2 10.2.10.2/31 (to BGW2); router-id 10.2.0.1; router bgp 65002; RR clients 10.2.0.13 (LEAF3) and 10.2.0.22 (BGW2), template remote-as 65002.
+    </div>
+
+    <h2 id="step-2-tenant">6. Step 2: Tenant Provisioning</h2>
+    <p>Next, we provision our tenant layer. This exact VLAN, VNI, VRF, and EVPN configuration block must be applied on <strong>every leaf and every BGW</strong> to ensure the Layer 2 and Layer 3 VNIs exist end-to-end.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ---- L2VNI VLANs ----
+vlan 10
+  vn-segment 10010
+vlan 20
+  vn-segment 10020
+vlan 30
+  vn-segment 10030
+vlan 40
+  vn-segment 10040
+
+! ---- L3VNI "core" VLANs (one per VRF) ----
+vlan 3900
+  vn-segment 50001
+vlan 3901
+  vn-segment 50002
+
+! ---- VRFs ----
+vrf context RED
+  vni 50001
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+vrf context BLUE
+  vni 50002
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+
+! ---- L3VNI core SVIs (routed, no IP) ----
+interface Vlan3900
+  no shutdown
+  vrf member RED
+  ip forward
+  no ip redirects
+interface Vlan3901
+  no shutdown
+  vrf member BLUE
+  ip forward
+  no ip redirects
+
+! ---- EVPN L2VNI definitions ----
+evpn
+  vni 10010 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10020 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10030 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10040 l2
+    rd auto
+    route-target import auto
+    route-target export auto</code></pre>
+    </div>
+
+    <p>For the Leaf switches only, we additionally configure the Anycast-GW SVIs. The Border Gateways do not need these SVIs unless they directly host endpoints.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>interface Vlan10
+  no shutdown
+  vrf member RED
+  ip address 192.168.10.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan20
+  no shutdown
+  vrf member RED
+  ip address 192.168.20.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan30
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.30.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan40
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.40.1/24
+  fabric forwarding mode anycast-gateway</code></pre>
+    </div>
+
+    <h2 id="step-3-leaf">7. Step 3: Leaf (VTEP) Configuration</h2>
+    <p>Our leaves are the workhorses of the VXLAN fabric, mapping local access VLANs to their respective VNIs and enforcing routing in the overlay. Below is the comprehensive configuration for LEAF1.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>feature ospf
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+nv overlay evpn
+fabric forwarding anycast-gateway-mac 0000.00aa.aaaa
+
+interface loopback0
+  ip address 10.1.0.11/32
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback1
+  ip address 10.1.1.11/32
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.1.10.1/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.1.0.11
+
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback1
+  member vni 10010
+    ingress-replication protocol bgp
+  member vni 10020
+    ingress-replication protocol bgp
+  member vni 10030
+    ingress-replication protocol bgp
+  member vni 10040
+    ingress-replication protocol bgp
+  member vni 50001 associate-vrf
+  member vni 50002 associate-vrf
+
+route-map REDIST-CONN permit 10
+
+router bgp 65001
+  router-id 10.1.0.11
+  template peer SPINE-EVPN
+    remote-as 65001
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+  neighbor 10.1.0.1
+    inherit peer SPINE-EVPN
+  vrf RED
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN
+  vrf BLUE
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN</code></pre>
+    </div>
+
+    <div class="callout">
+        <strong>Leaf deltas (apply the Tenant provisioning block from STEP 2 on each leaf, plus):</strong>
+        <ul>
+            <li><strong>LEAF2 (DC1, AS 65001):</strong> loopback0 10.1.0.12, loopback1 10.1.1.12, Eth1/1 to SPINE1 10.1.10.3/31, router-id 10.1.0.12, BGP neighbor 10.1.0.1 remote-as 65001.</li>
+            <li><strong>LEAF3 (DC2, AS 65002):</strong> loopback0 10.2.0.13, loopback1 10.2.1.13, Eth1/1 to SPINE2 10.2.10.1/31, router-id 10.2.0.13, template/neighbor remote-as 65002, BGP neighbor 10.2.0.1 (SPINE2), router bgp 65002.</li>
+        </ul>
+    </div>
+
+    <h2 id="step-4-bgw">8. Step 4: Border Gateway Configuration</h2>
+    <p>Now for the critical multi-site configuration. The BGW must orchestrate local fabric peering while exchanging Multi-Site updates over the DCI. Remember to apply the Step 2 Tenant provisioning block on the BGW first so the VNIs exist.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>feature ospf
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+nv overlay evpn
+fabric forwarding anycast-gateway-mac 0000.00aa.aaaa
+
+evpn multisite border-gateway 1
+
+interface loopback0
+  ip address 10.1.0.21/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback1
+  ip address 10.1.1.21/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback100
+  ip address 10.1.100.1/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.1.10.5/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  evpn multisite fabric-tracking
+  no shutdown
+
+interface Ethernet1/3
+  no switchport
+  ip address 172.16.1.0/31 tag 54321
+  mtu 9216
+  evpn multisite dci-tracking
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.1.0.21
+
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback1
+  multisite border-gateway interface loopback100
+  member vni 10010
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10020
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10030
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10040
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 50001 associate-vrf
+  member vni 50002 associate-vrf
+
+route-map RMAP-LOOPBACKS permit 10
+  match tag 54321
+
+router bgp 65001
+  router-id 10.1.0.21
+  address-family ipv4 unicast
+    redistribute direct route-map RMAP-LOOPBACKS
+    maximum-paths 4
+  address-family l2vpn evpn
+    advertise-pip
+  ! ---- iBGP EVPN to local spine (RR) ----
+  neighbor 10.1.0.1
+    remote-as 65001
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+  ! ---- DCI underlay: eBGP IPv4 to remote BGW (exchange loopbacks) ----
+  neighbor 172.16.1.1
+    remote-as 65002
+    update-source Ethernet1/3
+    address-family ipv4 unicast
+  ! ---- DCI overlay: eBGP L2VPN EVPN to remote BGW ----
+  neighbor 10.2.0.22
+    remote-as 65002
+    update-source loopback0
+    ebgp-multihop 5
+    peer-type fabric-external
+    address-family l2vpn evpn
+      send-community
+      send-community extended
+      rewrite-evpn-rt-asn
+  vrf RED
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+  vrf BLUE
+    address-family ipv4 unicast
+      advertise l2vpn evpn</code></pre>
+    </div>
+
+    <div class="callout">
+        <strong>BGW2 (DC2, AS 65002, site-id 2) delta:</strong>
+        <ul>
+            <li>evpn multisite border-gateway 2</li>
+            <li>loopback0 10.2.0.22, loopback1 10.2.1.22 tag 54321, loopback100 10.2.100.1 tag 54321</li>
+            <li>Fabric link Eth1/1 -&gt; SPINE2: 10.2.10.3/31, evpn multisite fabric-tracking</li>
+            <li>DCI link Eth1/3 -&gt; BGW1: 172.16.1.1/31 tag 54321, evpn multisite dci-tracking</li>
+            <li>router ospf router-id 10.2.0.22</li>
+            <li>router bgp 65002, router-id 10.2.0.22</li>
+            <li>iBGP EVPN neighbor 10.2.0.1 (SPINE2) remote-as 65002</li>
+            <li>DCI underlay eBGP IPv4 neighbor 172.16.1.0 remote-as 65001, update-source Ethernet1/3</li>
+            <li>DCI overlay eBGP EVPN neighbor 10.1.0.21 remote-as 65001, update-source loopback0, ebgp-multihop 5, peer-type fabric-external, rewrite-evpn-rt-asn</li>
+        </ul>
+    </div>
+
+    <h2 id="step-5-hosts">9. Step 5: Attach Hosts & Test</h2>
+    <p>With the fabrics bridged, let's provision access ports on the leaves to connect our user endpoints. This will map raw traffic into our VRFs.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ---- LEAF1 (RED-User-DC1) ----
+interface Ethernet1/5
+  switchport
+  switchport access vlan 10
+  spanning-tree port type edge
+  no shutdown
+
+! ---- LEAF2 (BLUE-User-DC1) ----
+interface Ethernet1/5
+  switchport
+  switchport access vlan 30
+  spanning-tree port type edge
+  no shutdown
+
+! ---- LEAF3 (RED-User-DC2 + BLUE-User-DC2) ----
+interface Ethernet1/5
+  switchport
+  switchport access vlan 20
+  spanning-tree port type edge
+  no shutdown
+interface Ethernet1/4
+  switchport
+  switchport access vlan 40
+  spanning-tree port type edge
+  no shutdown</code></pre>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Host</th>
+                    <th>Leaf / Port</th>
+                    <th>VLAN</th>
+                    <th>VRF</th>
+                    <th>Host IP/Mask</th>
+                    <th>Default Gateway</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>RED-User-DC1</td><td>LEAF1 Eth1/5</td><td>10</td><td>RED</td><td>192.168.10.10/24</td><td>192.168.10.1</td></tr>
+                <tr><td>BLUE-User-DC1</td><td>LEAF2 Eth1/5</td><td>30</td><td>BLUE</td><td>192.168.30.10/24</td><td>192.168.30.1</td></tr>
+                <tr><td>RED-User-DC2</td><td>LEAF3 Eth1/5</td><td>20</td><td>RED</td><td>192.168.20.10/24</td><td>192.168.20.1</td></tr>
+                <tr><td>BLUE-User-DC2</td><td>LEAF3 Eth1/4</td><td>40</td><td>BLUE</td><td>192.168.40.10/24</td><td>192.168.40.1</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p>For your endpoint machines (using an Alpine Linux <code>/etc/network/interfaces</code> example for RED-User-DC1), configure static addressing. Ensure to run <code>rc-service networking restart</code> after updating.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>auto eth0
+iface eth0 inet static
+    address 192.168.10.10
+    netmask 255.255.255.0
+    gateway 192.168.10.1</code></pre>
+    </div>
+
+    <p>We can now run our test matrix to prove reachability and isolation across our sites.</p>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Test</th>
+                    <th>Path</th>
+                    <th>Proves</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>RED-User-DC1 (192.168.10.10) &lt;-&gt; RED-User-DC2 (192.168.20.10)</td><td>same VRF RED, inter-site inter-subnet via L3VNI 50001 (symmetric IRB, Type-5 + RT-ASN rewrite)</td><td>Inter-site routed reachability within a tenant</td><td>PASS</td></tr>
+                <tr><td>BLUE-User-DC1 (192.168.30.10) &lt;-&gt; BLUE-User-DC2 (192.168.40.10)</td><td>same VRF BLUE via L3VNI 50002</td><td>Inter-site routed reachability, second tenant</td><td>PASS</td></tr>
+                <tr><td>RED-User-DC1 &lt;-&gt; BLUE-User-DC1 (intra-DC1, cross-VRF)</td><td>no route-leak between RED/BLUE</td><td>Tenant isolation intra-site</td><td>FAIL (expected)</td></tr>
+                <tr><td>RED-User-DC1 &lt;-&gt; BLUE-User-DC2 (inter-site, cross-VRF)</td><td></td><td>Tenant isolation across sites</td><td>FAIL (expected)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <hr>
+
+    <h2 id="verification">10. Verification Cheat-Sheet</h2>
+    <p>Deploying is only half the battle. When validating a Multi-Site deployment, order matters: always verify the local underlay, then local EVPN, followed by the DCI IPv4 session, and finally the cross-site EVPN exchange.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! --- On the BGW: Multi-Site health ---
+show nve multisite dci-links
+show nve multisite fabric-links
+show nve peers
+show bgp l2vpn evpn summary
+
+! --- Control plane: re-origination + next-hop rewrite ---
+show bgp l2vpn evpn
+show bgp l2vpn evpn vni-id 10010
+show l2route evpn mac all
+
+! --- Underlay across DCI (eBGP IPv4) ---
+show ip bgp summary
+show ip route 10.2.100.1
+
+! --- Tenant routing (symmetric IRB) ---
+show ip route vrf RED
+show fabric forwarding ip local-host-db vrf RED</code></pre>
+    </div>
+
+    <div class="callout">
+        <strong>Troubleshooting order:</strong> per-site underlay (OSPF) up &rarr; intra-site EVPN (leaf&lt;-&gt;spine) up &rarr; DCI IPv4 up (remote loopbacks/VIP learned) &rarr; eBGP EVPN (BGW&lt;-&gt;BGW) up with peer-type fabric-external &rarr; remote routes show VIP next-hop &rarr; RT-ASN rewrite working (routes imported into local VRF) &rarr; data plane (MTU 9216 on fabric AND DCI). Most Multi-Site failures: missing dci-tracking, missing rewrite-evpn-rt-asn, or VIP not reachable across the DCI.
+    </div>
+
+    <hr>
+
+    <h2 id="rocev2">11. RoCEv2 Lossless Fabric: DCQCN (PFC + ECN/WRED)</h2>
+    <p>A modern data center must handle storage and high-performance computing workloads elegantly. RoCEv2 (RDMA over Converged Ethernet v2) encapsulates RDMA into UDP/IP (UDP destination port <code>4791</code>), making it routable across our VXLAN fabric. However, RDMA collapses catastrophically if packets drop, mandating a lossless network class.</p>
+    <p>To achieve this without drops, we implement DCQCN (Data Center Quantized Congestion Notification), a triad of features:</p>
+    <ul>
+        <li><strong>PFC (Priority Flow Control)</strong>: A hop-by-hop pause mechanism for the no-drop class when ingress buffers fill. It must be enabled on every hop.</li>
+        <li><strong>ECN (Explicit Congestion Notification)</strong>: WRED on the egress queue marks packets (CE bits) instead of dropping them, signaling congestion end-to-end.</li>
+        <li><strong>CNP (Congestion Notification Packet)</strong>: The receiver returns a high-priority CNP (DSCP 48 / CoS 7) to throttle the sender.</li>
+    </ul>
+
+    <div class="callout warning">
+        <strong>⚠ Nexus 9000v Caveat</strong>
+        The Nexus 9000v (virtual) accepts these QoS/PFC/ECN commands but does <strong>NOT</strong> enforce them in the data plane, since it has no switching ASIC. The configuration is correct and deployable for physical hardware (Nexus 9200 / 9300-EX/FX/GX / 9500); on the 9000v CML lab it validates syntax and control-plane only.
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr><th>Traffic</th><th>DSCP</th><th>CoS</th><th>qos-group</th><th>Queue</th><th>Treatment</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>RoCEv2 data</td><td>24</td><td>3</td><td>3</td><td>c-out-8q-q3</td><td>No-drop (PFC) + ECN/WRED</td></tr>
+                <tr><td>CNP (congestion notification)</td><td>48</td><td>7</td><td>7</td><td>c-out-8q-q7</td><td>Strict priority (level 1)</td></tr>
+                <tr><td>Everything else</td><td>n/a</td><td>0</td><td>0</td><td>c-out-8q-q-default</td><td>Best-effort (bandwidth remaining)</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p>The end-to-end rule dictates that PFC must be enabled on every single hop of the RoCE path. We start by applying global QoS classification and policies to all devices (Spines, Leaves, and BGWs).</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT</code></pre>
+    </div>
+
+    <p>With the global definitions in place, we bind PFC behavior to the specific interfaces participating in the transit path. This block is repeated on each RoCE-path interface.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr><th>Device</th><th>Interfaces</th><th>Role</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>SPINE1</td><td>Eth1/1, Eth1/2, Eth1/3</td><td>Fabric (to LEAF1, LEAF2, BGW1)</td></tr>
+                <tr><td>SPINE2</td><td>Eth1/1, Eth1/2</td><td>Fabric (to LEAF3, BGW2)</td></tr>
+                <tr><td>LEAF1</td><td>Eth1/1, Eth1/5</td><td>Uplink + RED host (VLAN 10)</td></tr>
+                <tr><td>LEAF2</td><td>Eth1/1, Eth1/5</td><td>Uplink + BLUE host (VLAN 30)</td></tr>
+                <tr><td>LEAF3</td><td>Eth1/1, Eth1/4, Eth1/5</td><td>Uplink + BLUE host (VLAN 40) + RED host (VLAN 20)</td></tr>
+                <tr><td>BGW1</td><td>Eth1/1, Eth1/3</td><td>Fabric uplink + DCI to DC2</td></tr>
+                <tr><td>BGW2</td><td>Eth1/1, Eth1/3</td><td>Fabric uplink + DCI to DC1</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p>With classification, no-drop network-qos, ECN/WRED queuing, and per-interface PFC all in place across every hop, the RoCE path is complete. The final step is to prove the deployment programmed correctly.</p>
+
+    <h3>Step 6: Verify the RoCEv2 / QoS Deployment</h3>
+    <p>Before trusting the fabric with lossless traffic, confirm every layer of DCQCN actually programmed into the box. Walk the verification in the same direction traffic is treated: <strong>classification &rarr; marking (qos-group) &rarr; no-drop network-qos &rarr; egress queuing with ECN/WRED &rarr; PFC per interface</strong>. Run these on every device in the RoCE path (Spines, Leaves, and BGWs).</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! --- 1. Classification + marking: is traffic landing in qos-group 3 / 7? ---
+show class-map type qos ROCEv2
+show class-map type qos CNP
+show policy-map type qos QOS_MARKING
+show policy-map interface ethernet 1/1 type qos
+
+! --- 2. No-drop class: PFC pause bound to CoS 3, jumbo MTU ---
+show policy-map system type network-qos
+show queuing interface ethernet 1/1 | include -i "qos-group|pause|no-drop"
+
+! --- 3. Egress queuing + ECN/WRED on the RoCE queue (q3) ---
+show policy-map system type queuing
+show queuing interface ethernet 1/1
+show queuing interface ethernet 1/1 | include -i "ECN|WRED|random-detect|Minimum|Maximum"
+
+! --- 4. PFC operational per interface (must be ON, every hop) ---
+show interface priority-flow-control
+show interface ethernet 1/1 priority-flow-control detail
+show queuing pfc-queue interface ethernet 1/1 detail
+
+! --- 5. Prove it is working: ECN marks rising, PFC pause frames, ZERO tail-drops on q3 ---
+show queuing interface ethernet 1/1 | include -i "ECN Marked|WRED Dropped|Tail Drop"
+show interface ethernet 1/1 priority-flow-control | include -i "RxPPP|TxPPP"</code></pre>
+    </div>
+
+    <div class="callout">
+        <strong>What a healthy deployment looks like:</strong> the QoS input policy shows non-zero match counters for the ROCEv2 class; <code>system type network-qos</code> lists <code>pause pfc-cos 3</code> and <code>mtu 9216</code> on <code>c-8q-nq3</code>; queue <code>c-out-8q-q3</code> reports WRED enabled with min-threshold 150&nbsp;KB / max-threshold 3000&nbsp;KB and <code>ECN</code> on; PFC Oper state is <code>On</code> with the CoS&nbsp;3 priority-vector set on every hop. Under load you should see <strong>ECN-marked</strong> counters and <strong>PFC pause (PPP)</strong> frames incrementing while the <strong>tail-drop counter on q3 stays at zero</strong>, and that zero is the entire point of a lossless class.
+    </div>
+
+    <h2 id="troubleshooting">12. Troubleshooting</h2>
+    <p>Multi-Site fabrics tend to fail in a handful of predictable ways, and almost all of them come back to one rule: a small piece of config is missing on exactly one box, and the whole cross-site path quietly stops working while the local fabric looks perfectly healthy. Work the path in order, from the underlay up to the tenant VRF, and each of these gets easy to spot. Here are the ones you will actually hit.</p>
+
+    <div class="table-wrapper tshoot-table">
+        <table>
+            <thead>
+                <tr><th>What you see</th><th>Most likely cause</th><th>Quick fix</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Remote MS-VIP not in the routing table, DCI NVE peer stuck Down</td><td>Loopback missing <code>tag 54321</code></td><td>Re-tag the loopback</td></tr>
+                <tr><td><code>show nve multisite dci-links</code> is empty</td><td>Missing <code>dci-tracking</code> / <code>fabric-tracking</code></td><td>Add tracking on the right links</td></tr>
+                <tr><td>Remote routes point at a remote leaf, traffic blackholes</td><td>Missing <code>peer-type fabric-external</code></td><td>Set it on the inter-site EVPN neighbor</td></tr>
+                <tr><td>EVPN routes present but not in <code>vrf RED</code></td><td>Missing <code>rewrite-evpn-rt-asn</code></td><td>Add it under the EVPN address-family</td></tr>
+                <tr><td>Control plane up, big pings drop</td><td>MTU not 9216 on a hop</td><td>Fix MTU on fabric and DCI</td></tr>
+                <tr><td>RoCE drops under load</td><td>PFC not on every hop</td><td>Enable PFC on the whole path</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Missing tag on a loopback interface</h3>
+    <p>The classic one. The BGW matches <code>tag 54321</code> in <code>route-map RMAP-LOOPBACKS</code> to redistribute its loopbacks into the DCI BGP session. Drop the tag on one loopback (especially the MS-VIP lo100) and that address is never advertised, so the remote BGW cannot reach your VIP, the DCI NVE peer stays Down, and no cross-site tunnel forms.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ===== Detect: is the VIP actually tagged and advertised? =====
+! On BGW1, confirm the loopback carries the tag
+show running-config interface loopback100
+show route-map RMAP-LOOPBACKS
+! Is it redistributed into the DCI IPv4 table?
+show ip bgp 10.1.100.1
+! On BGW2 (remote side): did we learn it, and is the peer up?
+show ip route 10.1.100.1
+show nve peers
+show nve multisite dci-links
+
+! ===== Fix: put the tag back and let it re-advertise =====
+interface loopback100
+  ip address 10.1.100.1/32 tag 54321</code></pre>
+    </div>
+
+    <div class="callout">
+        <strong>Rule of thumb:</strong> if a cross-site tunnel will not form, the very first thing to check is whether the remote BGW has a route to your <code>lo100</code> VIP. Nine times out of ten it traces back to a loopback that lost its <code>tag 54321</code>, or a redistribute route-map that is not matching it.
+    </div>
+
+    <h3>Missing multisite tracking on an interface</h3>
+    <p>The BGW advertises its VIP based on link tracking: fabric links need <code>evpn multisite fabric-tracking</code>, DCI links need <code>evpn multisite dci-tracking</code>. Miss it and the VIP is withheld and cross-site BUM breaks, even with the interfaces physically up.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ===== Detect =====
+show nve multisite dci-links
+show nve multisite fabric-links
+show running-config interface Ethernet1/3
+
+! ===== Fix =====
+interface Ethernet1/3
+  evpn multisite dci-tracking
+interface Ethernet1/1
+  evpn multisite fabric-tracking</code></pre>
+    </div>
+
+    <h3>Next-hop not rewritten (peer-type fabric-external)</h3>
+    <p>The BGW rewrites the overlay next-hop to its own VIP before handing routes to the remote site, and <code>peer-type fabric-external</code> on the inter-site EVPN neighbor is what turns that on. Leave it off and the remote site learns routes pointing at the original leaf VTEP, which it cannot reach, so traffic is accepted and then silently dropped.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ===== Detect: next-hop should be the remote MS-VIP, not a remote leaf =====
+show bgp l2vpn evpn vni-id 10010
+show bgp l2vpn evpn
+
+! ===== Fix =====
+router bgp 65001
+  neighbor 10.2.0.22
+    peer-type fabric-external</code></pre>
+    </div>
+
+    <h3>Routes learned but not imported into the VRF (rewrite-evpn-rt-asn)</h3>
+    <p>With the two sites in different AS numbers, the ASN portion of the Route Targets does not match on import. Routes show up in <code>show bgp l2vpn evpn</code> but never land in the tenant VRF, so hosts cannot talk across sites. <code>rewrite-evpn-rt-asn</code> rewrites that ASN on the fly so the import works.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ===== Detect: present in EVPN, missing from the VRF =====
+show bgp l2vpn evpn route-type 2
+show ip route vrf RED
+
+! ===== Fix =====
+router bgp 65001
+  neighbor 10.2.0.22
+    address-family l2vpn evpn
+      rewrite-evpn-rt-asn</code></pre>
+    </div>
+
+    <h3>MTU mismatch on the path</h3>
+    <p>VXLAN adds about 50 to 54 bytes of outer headers, so every underlay and DCI link needs MTU 9216. Leave one hop at the default and BGP and small pings still pass, so the problem only surfaces when full-size frames start dropping.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ===== Detect: control plane fine, large DF-bit ping fails =====
+show interface Ethernet1/1 | include -i MTU
+ping 10.2.100.1 df-bit packet-size 9000 source loopback0
+
+! ===== Fix =====
+interface Ethernet1/1
+  mtu 9216</code></pre>
+    </div>
+
+    <h3>RoCEv2 drops because PFC is not on every hop</h3>
+    <p>A lossless class is only lossless if every hop honors it. Miss <code>priority-flow-control mode on</code> or the input QoS policy on even one transit interface and pause is not propagated there, so that hop drops RoCE traffic under congestion no matter how well the rest of the fabric is tuned.</p>
+
+    <div class="code-block-wrapper">
+        <button class="copy-btn">Copy</button>
+        <pre><code>! ===== Detect: find the hop where PFC is not On =====
+show interface priority-flow-control
+show queuing interface ethernet 1/1
+
+! ===== Fix: apply on every RoCE-path interface, on every device =====
+interface Ethernet1/1
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on</code></pre>
+    </div>
+
+    <h2 id="wrap-up">13. Wrap-up</h2>
+    <p>When making the transition from virtual labs like this CML 9000v environment to physical NX-OS hardware (such as the Nexus 9300-EX/FX3/GX platforms), the core BGP and VXLAN configuration remains identical. The major physical difference will be the activation of the ASIC to enforce your lossless queuing, allowing the DCQCN control loops to engage at line rate. Mastering these multi-site concepts and deep-buffer traffic engineering prepares you to build the most resilient and performant data center architectures in the industry.</p>
+
+    </div><!-- /guide-main -->
+    </div><!-- /guide-layout -->
+
+    </div><!-- /tab-guide -->
+
+    <div id="tab-config" class="tab-panel">
+    <h2>Full Configuration</h2>
+    <p>The complete, copy-ready running configuration for every switch, grouped by site. Use the menu on the left to jump straight to a device. Each block is the full config for that box, exactly as applied.</p>
+    <div class="config-layout">
+        <nav class="config-nav" aria-label="Device configurations">
+            <p class="config-nav-group">DC1 &middot; AS 65001</p>
+            <a href="#cfg-leaf1">LEAF1</a>
+            <a href="#cfg-leaf2">LEAF2</a>
+            <a href="#cfg-spine1">SPINE1</a>
+            <a href="#cfg-bgw1">BGW1</a>
+            <p class="config-nav-group">DC2 &middot; AS 65002</p>
+            <a href="#cfg-leaf3">LEAF3</a>
+            <a href="#cfg-spine2">SPINE2</a>
+            <a href="#cfg-bgw2">BGW2</a>
+        </nav>
+
+        <div class="config-main">
+            <section id="cfg-leaf1">
+                <h3>DC1 &middot; LEAF1 <span class="cfg-as">AS 65001</span></h3>
+                <div class="code-block-wrapper">
+                    <button class="copy-btn">Copy</button>
+                    <pre><code>feature ospf
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+nv overlay evpn
+fabric forwarding anycast-gateway-mac 0000.00aa.aaaa
+
+vlan 10
+  vn-segment 10010
+vlan 20
+  vn-segment 10020
+vlan 30
+  vn-segment 10030
+vlan 40
+  vn-segment 10040
+vlan 3900
+  vn-segment 50001
+vlan 3901
+  vn-segment 50002
+
+vrf context RED
+  vni 50001
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+vrf context BLUE
+  vni 50002
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+
+interface Vlan3900
+  no shutdown
+  vrf member RED
+  ip forward
+  no ip redirects
+interface Vlan3901
+  no shutdown
+  vrf member BLUE
+  ip forward
+  no ip redirects
+
+interface Vlan10
+  no shutdown
+  vrf member RED
+  ip address 192.168.10.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan20
+  no shutdown
+  vrf member RED
+  ip address 192.168.20.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan30
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.30.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan40
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.40.1/24
+  fabric forwarding mode anycast-gateway
+
+evpn
+  vni 10010 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10020 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10030 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10040 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+
+interface loopback0
+  ip address 10.1.0.11/32
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback1
+  ip address 10.1.1.11/32
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.1.10.1/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+
+interface Ethernet1/5
+  switchport
+  switchport access vlan 10
+  spanning-tree port type edge
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.1.0.11
+
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback1
+  member vni 10010
+    ingress-replication protocol bgp
+  member vni 10020
+    ingress-replication protocol bgp
+  member vni 10030
+    ingress-replication protocol bgp
+  member vni 10040
+    ingress-replication protocol bgp
+  member vni 50001 associate-vrf
+  member vni 50002 associate-vrf
+
+route-map REDIST-CONN permit 10
+
+router bgp 65001
+  router-id 10.1.0.11
+  template peer SPINE-EVPN
+    remote-as 65001
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+  neighbor 10.1.0.1
+    inherit peer SPINE-EVPN
+  vrf RED
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN
+  vrf BLUE
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN
+
+! ===== RoCEv2 lossless fabric - DCQCN (PFC + ECN/WRED) =====
+class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT
+
+interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/5
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+                </div>
+            </section>
+            <section id="cfg-leaf2">
+                <h3>DC1 &middot; LEAF2 <span class="cfg-as">AS 65001</span></h3>
+                <div class="code-block-wrapper">
+                    <button class="copy-btn">Copy</button>
+                    <pre><code>feature ospf
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+nv overlay evpn
+fabric forwarding anycast-gateway-mac 0000.00aa.aaaa
+
+vlan 10
+  vn-segment 10010
+vlan 20
+  vn-segment 10020
+vlan 30
+  vn-segment 10030
+vlan 40
+  vn-segment 10040
+vlan 3900
+  vn-segment 50001
+vlan 3901
+  vn-segment 50002
+
+vrf context RED
+  vni 50001
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+vrf context BLUE
+  vni 50002
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+
+interface Vlan3900
+  no shutdown
+  vrf member RED
+  ip forward
+  no ip redirects
+interface Vlan3901
+  no shutdown
+  vrf member BLUE
+  ip forward
+  no ip redirects
+
+interface Vlan10
+  no shutdown
+  vrf member RED
+  ip address 192.168.10.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan20
+  no shutdown
+  vrf member RED
+  ip address 192.168.20.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan30
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.30.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan40
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.40.1/24
+  fabric forwarding mode anycast-gateway
+
+evpn
+  vni 10010 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10020 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10030 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10040 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+
+interface loopback0
+  ip address 10.1.0.12/32
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback1
+  ip address 10.1.1.12/32
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.1.10.3/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+
+interface Ethernet1/5
+  switchport
+  switchport access vlan 30
+  spanning-tree port type edge
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.1.0.12
+
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback1
+  member vni 10010
+    ingress-replication protocol bgp
+  member vni 10020
+    ingress-replication protocol bgp
+  member vni 10030
+    ingress-replication protocol bgp
+  member vni 10040
+    ingress-replication protocol bgp
+  member vni 50001 associate-vrf
+  member vni 50002 associate-vrf
+
+route-map REDIST-CONN permit 10
+
+router bgp 65001
+  router-id 10.1.0.12
+  template peer SPINE-EVPN
+    remote-as 65001
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+  neighbor 10.1.0.1
+    inherit peer SPINE-EVPN
+  vrf RED
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN
+  vrf BLUE
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN
+
+! ===== RoCEv2 lossless fabric - DCQCN (PFC + ECN/WRED) =====
+class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT
+
+interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/5
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+                </div>
+            </section>
+            <section id="cfg-spine1">
+                <h3>DC1 &middot; SPINE1 <span class="cfg-as">AS 65001</span></h3>
+                <div class="code-block-wrapper">
+                    <button class="copy-btn">Copy</button>
+                    <pre><code>feature ospf
+feature bgp
+feature nv overlay
+nv overlay evpn
+
+interface loopback0
+  ip address 10.1.0.1/32
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.1.10.0/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+interface Ethernet1/2
+  no switchport
+  ip address 10.1.10.2/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+interface Ethernet1/3
+  no switchport
+  ip address 10.1.10.4/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.1.0.1
+
+router bgp 65001
+  router-id 10.1.0.1
+  address-family l2vpn evpn
+    retain route-target all
+  template peer FABRIC-RR
+    remote-as 65001
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+      route-reflector-client
+  neighbor 10.1.0.11
+    inherit peer FABRIC-RR
+  neighbor 10.1.0.12
+    inherit peer FABRIC-RR
+  neighbor 10.1.0.21
+    inherit peer FABRIC-RR
+
+! ===== RoCEv2 lossless fabric - DCQCN (PFC + ECN/WRED) =====
+class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT
+
+interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/2
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/3
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+                </div>
+            </section>
+            <section id="cfg-bgw1">
+                <h3>DC1 &middot; BGW1 <span class="cfg-as">AS 65001</span></h3>
+                <div class="code-block-wrapper">
+                    <button class="copy-btn">Copy</button>
+                    <pre><code>feature ospf
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+nv overlay evpn
+fabric forwarding anycast-gateway-mac 0000.00aa.aaaa
+
+evpn multisite border-gateway 1
+
+vlan 10
+  vn-segment 10010
+vlan 20
+  vn-segment 10020
+vlan 30
+  vn-segment 10030
+vlan 40
+  vn-segment 10040
+vlan 3900
+  vn-segment 50001
+vlan 3901
+  vn-segment 50002
+
+vrf context RED
+  vni 50001
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+vrf context BLUE
+  vni 50002
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+
+interface Vlan3900
+  no shutdown
+  vrf member RED
+  ip forward
+  no ip redirects
+interface Vlan3901
+  no shutdown
+  vrf member BLUE
+  ip forward
+  no ip redirects
+
+evpn
+  vni 10010 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10020 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10030 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10040 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+
+interface loopback0
+  ip address 10.1.0.21/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback1
+  ip address 10.1.1.21/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback100
+  ip address 10.1.100.1/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.1.10.5/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  evpn multisite fabric-tracking
+  no shutdown
+
+interface Ethernet1/3
+  no switchport
+  ip address 172.16.1.0/31 tag 54321
+  mtu 9216
+  evpn multisite dci-tracking
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.1.0.21
+
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback1
+  multisite border-gateway interface loopback100
+  member vni 10010
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10020
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10030
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10040
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 50001 associate-vrf
+  member vni 50002 associate-vrf
+
+route-map RMAP-LOOPBACKS permit 10
+  match tag 54321
+
+router bgp 65001
+  router-id 10.1.0.21
+  address-family ipv4 unicast
+    redistribute direct route-map RMAP-LOOPBACKS
+    maximum-paths 4
+  address-family l2vpn evpn
+    advertise-pip
+  neighbor 10.1.0.1
+    remote-as 65001
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+  neighbor 172.16.1.1
+    remote-as 65002
+    update-source Ethernet1/3
+    address-family ipv4 unicast
+  neighbor 10.2.0.22
+    remote-as 65002
+    update-source loopback0
+    ebgp-multihop 5
+    peer-type fabric-external
+    address-family l2vpn evpn
+      send-community
+      send-community extended
+      rewrite-evpn-rt-asn
+  vrf RED
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+  vrf BLUE
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+
+! ===== RoCEv2 lossless fabric - DCQCN (PFC + ECN/WRED) =====
+class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT
+
+interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/3
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+                </div>
+            </section>
+            <section id="cfg-leaf3">
+                <h3>DC2 &middot; LEAF3 <span class="cfg-as">AS 65002</span></h3>
+                <div class="code-block-wrapper">
+                    <button class="copy-btn">Copy</button>
+                    <pre><code>feature ospf
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+nv overlay evpn
+fabric forwarding anycast-gateway-mac 0000.00aa.aaaa
+
+vlan 10
+  vn-segment 10010
+vlan 20
+  vn-segment 10020
+vlan 30
+  vn-segment 10030
+vlan 40
+  vn-segment 10040
+vlan 3900
+  vn-segment 50001
+vlan 3901
+  vn-segment 50002
+
+vrf context RED
+  vni 50001
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+vrf context BLUE
+  vni 50002
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+
+interface Vlan3900
+  no shutdown
+  vrf member RED
+  ip forward
+  no ip redirects
+interface Vlan3901
+  no shutdown
+  vrf member BLUE
+  ip forward
+  no ip redirects
+
+interface Vlan10
+  no shutdown
+  vrf member RED
+  ip address 192.168.10.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan20
+  no shutdown
+  vrf member RED
+  ip address 192.168.20.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan30
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.30.1/24
+  fabric forwarding mode anycast-gateway
+interface Vlan40
+  no shutdown
+  vrf member BLUE
+  ip address 192.168.40.1/24
+  fabric forwarding mode anycast-gateway
+
+evpn
+  vni 10010 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10020 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10030 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10040 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+
+interface loopback0
+  ip address 10.2.0.13/32
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback1
+  ip address 10.2.1.13/32
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.2.10.1/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+
+interface Ethernet1/5
+  switchport
+  switchport access vlan 20
+  spanning-tree port type edge
+  no shutdown
+interface Ethernet1/4
+  switchport
+  switchport access vlan 40
+  spanning-tree port type edge
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.2.0.13
+
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback1
+  member vni 10010
+    ingress-replication protocol bgp
+  member vni 10020
+    ingress-replication protocol bgp
+  member vni 10030
+    ingress-replication protocol bgp
+  member vni 10040
+    ingress-replication protocol bgp
+  member vni 50001 associate-vrf
+  member vni 50002 associate-vrf
+
+route-map REDIST-CONN permit 10
+
+router bgp 65002
+  router-id 10.2.0.13
+  template peer SPINE-EVPN
+    remote-as 65002
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+  neighbor 10.2.0.1
+    inherit peer SPINE-EVPN
+  vrf RED
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN
+  vrf BLUE
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+      redistribute direct route-map REDIST-CONN
+
+! ===== RoCEv2 lossless fabric - DCQCN (PFC + ECN/WRED) =====
+class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT
+
+interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/4
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/5
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+                </div>
+            </section>
+            <section id="cfg-spine2">
+                <h3>DC2 &middot; SPINE2 <span class="cfg-as">AS 65002</span></h3>
+                <div class="code-block-wrapper">
+                    <button class="copy-btn">Copy</button>
+                    <pre><code>feature ospf
+feature bgp
+feature nv overlay
+nv overlay evpn
+
+interface loopback0
+  ip address 10.2.0.1/32
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.2.10.0/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+interface Ethernet1/2
+  no switchport
+  ip address 10.2.10.2/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.2.0.1
+
+router bgp 65002
+  router-id 10.2.0.1
+  address-family l2vpn evpn
+    retain route-target all
+  template peer FABRIC-RR
+    remote-as 65002
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+      route-reflector-client
+  neighbor 10.2.0.13
+    inherit peer FABRIC-RR
+  neighbor 10.2.0.22
+    inherit peer FABRIC-RR
+
+! ===== RoCEv2 lossless fabric - DCQCN (PFC + ECN/WRED) =====
+class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT
+
+interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/2
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+                </div>
+            </section>
+            <section id="cfg-bgw2">
+                <h3>DC2 &middot; BGW2 <span class="cfg-as">AS 65002</span></h3>
+                <div class="code-block-wrapper">
+                    <button class="copy-btn">Copy</button>
+                    <pre><code>feature ospf
+feature bgp
+feature interface-vlan
+feature vn-segment-vlan-based
+feature nv overlay
+nv overlay evpn
+fabric forwarding anycast-gateway-mac 0000.00aa.aaaa
+
+evpn multisite border-gateway 2
+
+vlan 10
+  vn-segment 10010
+vlan 20
+  vn-segment 10020
+vlan 30
+  vn-segment 10030
+vlan 40
+  vn-segment 10040
+vlan 3900
+  vn-segment 50001
+vlan 3901
+  vn-segment 50002
+
+vrf context RED
+  vni 50001
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+vrf context BLUE
+  vni 50002
+  rd auto
+  address-family ipv4 unicast
+    route-target both auto
+    route-target both auto evpn
+
+interface Vlan3900
+  no shutdown
+  vrf member RED
+  ip forward
+  no ip redirects
+interface Vlan3901
+  no shutdown
+  vrf member BLUE
+  ip forward
+  no ip redirects
+
+evpn
+  vni 10010 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10020 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10030 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+  vni 10040 l2
+    rd auto
+    route-target import auto
+    route-target export auto
+
+interface loopback0
+  ip address 10.2.0.22/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback1
+  ip address 10.2.1.22/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+interface loopback100
+  ip address 10.2.100.1/32 tag 54321
+  ip router ospf UNDERLAY area 0.0.0.0
+
+interface Ethernet1/1
+  no switchport
+  ip address 10.2.10.3/31
+  ip router ospf UNDERLAY area 0.0.0.0
+  mtu 9216
+  evpn multisite fabric-tracking
+  no shutdown
+
+interface Ethernet1/3
+  no switchport
+  ip address 172.16.1.1/31 tag 54321
+  mtu 9216
+  evpn multisite dci-tracking
+  no shutdown
+
+router ospf UNDERLAY
+  router-id 10.2.0.22
+
+interface nve1
+  no shutdown
+  host-reachability protocol bgp
+  source-interface loopback1
+  multisite border-gateway interface loopback100
+  member vni 10010
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10020
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10030
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 10040
+    multisite ingress-replication
+    ingress-replication protocol bgp
+  member vni 50001 associate-vrf
+  member vni 50002 associate-vrf
+
+route-map RMAP-LOOPBACKS permit 10
+  match tag 54321
+
+router bgp 65002
+  router-id 10.2.0.22
+  address-family ipv4 unicast
+    redistribute direct route-map RMAP-LOOPBACKS
+    maximum-paths 4
+  address-family l2vpn evpn
+    advertise-pip
+  neighbor 10.2.0.1
+    remote-as 65002
+    update-source loopback0
+    address-family l2vpn evpn
+      send-community extended
+  neighbor 172.16.1.0
+    remote-as 65001
+    update-source Ethernet1/3
+    address-family ipv4 unicast
+  neighbor 10.1.0.21
+    remote-as 65001
+    update-source loopback0
+    ebgp-multihop 5
+    peer-type fabric-external
+    address-family l2vpn evpn
+      send-community
+      send-community extended
+      rewrite-evpn-rt-asn
+  vrf RED
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+  vrf BLUE
+    address-family ipv4 unicast
+      advertise l2vpn evpn
+
+! ===== RoCEv2 lossless fabric - DCQCN (PFC + ECN/WRED) =====
+class-map type qos match-any ROCEv2
+  match dscp 24
+class-map type qos match-any CNP
+  match dscp 48
+policy-map type qos QOS_MARKING
+  class ROCEv2
+    set qos-group 3
+  class CNP
+    set qos-group 7
+  class class-default
+    set qos-group 0
+policy-map type network-qos qos_network
+  class type network-qos c-8q-nq3
+    pause pfc-cos 3
+    mtu 9216
+  class type network-qos c-8q-nq7
+    mtu 9216
+  class type network-qos c-8q-nq-default
+    mtu 9216
+policy-map type queuing QOS_EGRESS_PORT
+  class type queuing c-out-8q-q7
+    priority level 1
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q3
+    bandwidth remaining percent 80
+    random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q-default
+    bandwidth remaining percent 20
+system qos
+  service-policy type network-qos qos_network
+  service-policy type queuing output QOS_EGRESS_PORT
+
+interface Ethernet1/1
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on
+interface Ethernet1/3
+  mtu 9216
+  service-policy type qos input QOS_MARKING
+  priority-flow-control mode on
+  priority-flow-control watch-dog-interval on</code></pre>
+                </div>
+            </section>
+        </div>
+    </div>
+    </div><!-- /tab-config -->
+
+</div>
+
+<script>
+    // Copy to clipboard functionality
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const pre = btn.nextElementSibling;
+            const code = pre.textContent;
+            
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        });
+    });
+
+    // Syntax highlighting for NX-OS comments (lines starting with '!')
+    document.querySelectorAll('pre').forEach(pre => {
+        const lines = pre.innerHTML.split('\n');
+        const formattedLines = lines.map(line => {
+            if (line.trim().startsWith('!')) {
+                return '<span class="nx-comment">' + line + '</span>';
+            }
+            return line;
+        });
+        pre.innerHTML = formattedLines.join('\n');
+    });
+</script>
+
+<button id="scrollTopBtn" title="Back to top" aria-label="Scroll back to top">&uarr;</button>
+
+<script>
+    (function () {
+        var btn = document.getElementById('scrollTopBtn');
+        if (!btn) return;
+        window.addEventListener('scroll', function () {
+            if (window.scrollY > 400) {
+                btn.classList.add('show');
+            } else {
+                btn.classList.remove('show');
+            }
+        });
+        btn.addEventListener('click', function () {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    })();
+</script>
+
+<script>
+    // Tab switching (Guide / Full Config)
+    document.querySelectorAll('.tab-btn').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var target = b.getAttribute('data-tab');
+            document.querySelectorAll('.tab-btn').forEach(function (x) { x.classList.remove('active'); });
+            document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+            b.classList.add('active');
+            document.getElementById('tab-' + target).classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'auto' });
+        });
+    });
+</script>
+
+</body>
+</html>
