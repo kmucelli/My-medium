@@ -1133,26 +1133,132 @@ iface eth0 inet static
     <h2 id="verification">10. Verification Cheat-Sheet</h2>
     <p>Deploying is only half the battle. When validating a Multi-Site deployment, order matters: always verify the local underlay, then local EVPN, followed by the DCI IPv4 session, and finally the cross-site EVPN exchange.</p>
 
-    <div class="code-block-wrapper">
-        <button class="copy-btn">Copy</button>
-        <pre><code>! --- On the BGW: Multi-Site health ---
-show nve multisite dci-links
-show nve multisite fabric-links
-show nve peers
-show bgp l2vpn evpn summary
+    <style>
+        .vrfy { margin: 2rem 0; border: 1px solid var(--code-border); border-radius: 6px; overflow: hidden; }
+        .vrfy-hint { font-size: 0.85rem; color: #6a737d; padding: 0.7rem 1rem; background: #f0f7f0; border-bottom: 1px solid var(--code-border); }
+        .vrfy-hint strong { color: #1a8917; }
+        .vrfy-group { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9aa0a6; font-weight: 700; padding: 0.9rem 1rem 0.3rem; background: #fafafa; }
+        .vrfy-cmd { display: flex; align-items: center; gap: 0.5rem; width: 100%; text-align: left; border: none; background: #fff; border-top: 1px solid var(--border-color); padding: 0.6rem 1rem; cursor: pointer; font-family: var(--mono-font); font-size: 0.85rem; color: #24292e; transition: background 0.12s ease; }
+        .vrfy-group + .vrfy-cmd { border-top: none; }
+        .vrfy-cmd:hover { background: #f6f8fa; }
+        .vrfy-cmd .prompt { color: #1a8917; font-weight: 700; }
+        .vrfy-cmd .caret { margin-left: auto; color: #9aa0a6; font-size: 0.75rem; transition: transform 0.15s ease; flex: 0 0 auto; }
+        .vrfy-cmd.open .caret { transform: rotate(90deg); }
+        .vrfy-cmd .badge { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: #eaf5ea; color: #1a8917; flex: 0 0 auto; }
+        .vrfy-cmd .badge.note { background: #f0f0f0; color: #9aa0a6; }
+        .vrfy-out { display: none; border-top: 1px solid var(--border-color); background: #f6f8fa; }
+        .vrfy-out.open { display: block; }
+        .vrfy-explain { padding: 0.9rem 1rem; font-size: 0.92rem; line-height: 1.55; color: #333; background: #fffbf0; border-bottom: 1px solid #f0e6c8; }
+        .vrfy-explain strong { color: #b97500; }
+        .vrfy-out pre { border: none; border-radius: 0; margin: 0; background: #f6f8fa; font-size: 0.78rem; line-height: 1.45; }
+    </style>
+    <div class="vrfy">
+        <div class="vrfy-hint"><strong>Interactive:</strong> click any command to reveal its live output (captured from the running lab) and a quick explanation of what to look for.</div>
 
-! --- Control plane: re-origination + next-hop rewrite ---
-show bgp l2vpn evpn
-show bgp l2vpn evpn vni-id 10010
-show l2route evpn mac all
+        <div class="vrfy-group">On the BGW &middot; Multi-Site health</div>
 
-! --- Underlay across DCI (eBGP IPv4) ---
-show ip bgp summary
-show ip route 10.2.100.1
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show nve multisite dci-links <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the DCI-facing link (Eth1/3, tagged <code>evpn multisite dci-tracking</code>) must be <code>Up</code>. If this list is empty, tracking is missing and the VIP is withheld.</div><pre><code>Interface      State
+---------      -----
+Ethernet1/3    Up</code></pre></div>
 
-! --- Tenant routing (symmetric IRB) ---
-show ip route vrf RED
-show fabric forwarding ip local-host-db vrf RED</code></pre>
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show nve multisite fabric-links <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the spine-facing link (Eth1/1, tagged <code>evpn multisite fabric-tracking</code>) must be <code>Up</code>. Fabric-tracking is what tells the BGW the local site is reachable so it can advertise the VIP.</div><pre><code>Interface      State
+---------      -----
+Ethernet1/1    Up</code></pre></div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show nve peers <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> local VTEPs (10.1.1.11/12) plus the remote side reachable via the remote MS-VIP <code>10.2.100.1</code> and the remote BGW PIP <code>10.2.1.22</code>, all <code>Up</code>, <code>LearnType CP</code> (control-plane / BGP-learned). Seeing the remote <code>...100.1</code> anycast VIP as a peer is the multi-site tunnel working.</div><pre><code>Interface Peer-IP        State LearnType Uptime  Router-Mac
+--------- -------------  ----- --------- ------  ----------------
+nve1      10.1.1.11      Up    CP        2d20h   529e.b837.1b08
+nve1      10.1.1.12      Up    CP        2d20h   521f.1d54.1b08
+nve1      10.2.1.22      Up    CP        2d19h   52f8.3617.1b08
+nve1      10.2.100.1     Up    CP        2d19h   0200.0a02.6401</code></pre></div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show bgp l2vpn evpn summary <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> two EVPN peers &mdash; the local spine RR <code>10.1.0.1</code> (type <code>I</code> / iBGP, AS 65001) and the remote BGW <code>10.2.0.22</code> (type <code>E</code> / eBGP, AS 65002). A numeric PfxRcd (not <code>Idle/Active</code>) means the session is Established and exchanging routes. The per-type breakdown shows Type-2 (MAC/IP), Type-3 (IMET) and Type-5 (prefix) routes flowing.</div><pre><code>BGP router identifier 10.1.0.21, local AS number 65001
+BGP table version is 1171, L2VPN EVPN config peers 2, capable peers 2
+
+Neighbor    V    AS   MsgRcvd MsgSent TblVer InQ OutQ Up/Down  State/PfxRcd
+10.1.0.1    4 65001    4410    4231    1171   0    0   2d20h   20
+10.2.0.22   4 65002    4367    4216    1171   0    0   2d19h   18
+
+Neighbor    T    AS Type-1 Type-2 Type-3 Type-4 Type-5
+10.1.0.1    I 65001   0      4      8      0      8
+10.2.0.22   E 65002   0     10      4      0      4</code></pre></div>
+
+        <div class="vrfy-group">Control plane &middot; re-origination + next-hop rewrite</div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show bgp l2vpn evpn <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> in the L2VNI 10010 table the same MAC set appears three ways &mdash; <code>i</code> (iBGP, from a local leaf 10.1.1.11), <code>l</code> (locally originated, 10.1.1.21), and <code>e</code> (eBGP, from remote BGW 10.2.1.22). Remote Type-5 prefixes (e.g. 192.168.20.0) arrive with next-hop <code>10.2.100.1</code> &mdash; the remote MS-VIP &mdash; proving the <strong>next-hop rewrite</strong> worked. Output trimmed to the illustrative RDs.</div><pre><code>Route Distinguisher: 10.1.0.21:32777    (L2VNI 10010)
+*&gt;i[2]:...[5254.00c0.1890]:[0.0.0.0]/216
+                      10.1.1.11        100      0 i        &lt;- local leaf (iBGP)
+*&gt;l[2]:...[52be.8479.1b08]:[0.0.0.0]/216
+                      10.1.1.21        100  32768 i        &lt;- local BGW (self)
+*&gt;e[2]:...[52f8.3617.1b08]:[0.0.0.0]/216
+                      10.2.1.22               0 65002 i    &lt;- remote BGW (eBGP)
+
+Route Distinguisher: 10.1.0.21:4    (L3VNI 50001)
+*&gt;e[2]:...[192.168.20.10]/272
+                      10.2.100.1  2000      0 65002 i      &lt;- rewritten to remote VIP
+*&gt;i[2]:...[192.168.10.10]/272
+                      10.1.1.11        100      0 i
+*&gt;l[5]:[0]:[0]:[24]:[192.168.10.0]/224
+                      10.1.1.21    0   100      0 ?
+*&gt;l[5]:[0]:[0]:[24]:[192.168.20.0]/224
+                      10.1.1.21    0   100      0 ?</code></pre></div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show bgp l2vpn evpn vni-id 10010 <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the same view as above but scoped to a single L2VNI &mdash; the fastest way to confirm a specific segment is stitched. You want all three path types present: local leaf (<code>i</code>), self (<code>l</code>), and the remote BGW (<code>e</code>, AS 65002). Swap <code>10010</code> for <code>10020/10030/10040</code> to check the other segments.</div><pre><code>Route Distinguisher: 10.1.0.21:32777    (L2VNI 10010)
+*&gt;i[2]:...[5254.00c0.1890]:[0.0.0.0]/216
+                      10.1.1.11        100      0 i
+*&gt;l[2]:...[52be.8479.1b08]:[0.0.0.0]/216
+                      10.1.1.21        100  32768 i
+*&gt;e[2]:...[52f8.3617.1b08]:[0.0.0.0]/216
+                      10.2.1.22               0 65002 i
+*&gt;i[2]:...[5254.00c0.1890]:[192.168.10.10]/272
+                      10.1.1.11        100      0 i
+*&gt;i[3]:[0]:[32]:[10.1.1.11]/88   10.1.1.11    100  0 i
+*&gt;i[3]:[0]:[32]:[10.1.1.12]/88   10.1.1.12    100  0 i
+*&gt;l[3]:[0]:[32]:[10.1.1.21]/88   10.1.1.21    100  32768 i
+*&gt;e[3]:[0]:[32]:[10.2.1.22]/88   10.2.1.22          0 65002 i</code></pre></div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show l2route evpn mac all <span class="badge note">note</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>Purpose:</strong> the local L2RIB view of learned MACs per L2VNI, independent of BGP. Use it to confirm a host MAC was actually programmed into the MAC table (Prod=BGP for remotely learned, Local for directly attached) after you see it in <code>show bgp l2vpn evpn</code>.</div><pre><code>(no capture from this lab run &mdash; run on a leaf/BGW to
+ see per-VNI MACs and their producer: Local vs BGP)</code></pre></div>
+
+        <div class="vrfy-group">Underlay across DCI &middot; eBGP IPv4</div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show ip bgp summary <span class="badge note">note</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>Purpose:</strong> confirms the DCI <em>underlay</em> eBGP IPv4 session (neighbor <code>172.16.1.1</code>, AS 65002) is Established. This is the session that carries the loopbacks/VIP between BGWs &mdash; it must be up <em>before</em> the overlay EVPN session can form over the loopbacks.</div><pre><code>(no capture &mdash; expect neighbor 172.16.1.1 remote-as 65002
+ Established, with the remote loopbacks/VIP in PfxRcd)</code></pre></div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show ip route 10.2.100.1 <span class="badge note">note</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>Purpose:</strong> the single most important underlay check &mdash; does the local BGW have a route to the <em>remote</em> MS-VIP? If this is missing, the cross-site NVE tunnel can never form. Nine times out of ten a missing route here traces back to a loopback that lost its <code>tag 54321</code>.</div><pre><code>(no capture &mdash; expect a /32 to 10.2.100.1 via 172.16.1.1
+ learned by eBGP over the DCI)</code></pre></div>
+
+        <div class="vrfy-group">Tenant routing &middot; symmetric IRB</div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show ip route vrf RED <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> local subnets (192.168.10.0, .20.0) resolve <code>via 10.1.1.11</code> (the local leaf VTEP), while the <em>remote</em> host <code>192.168.20.10/32</code> resolves <code>via 10.2.100.1</code> (the remote MS-VIP), tag 65002, <code>encap: VXLAN</code>, segid 50001. That VIP next-hop on a remote host route is symmetric-IRB inter-site routing working.</div><pre><code>IP Route Table for VRF "RED"
+'*' denotes best ucast next-hop
+
+192.168.10.0/24, ubest/mbest: 1/0
+    *via 10.1.1.11%default, [200/0], 2d20h, bgp-65001, internal,
+         tag 65001, segid: 50001 encap: VXLAN
+192.168.20.0/24, ubest/mbest: 1/0
+    *via 10.1.1.11%default, [200/0], 2d20h, bgp-65001, internal,
+         tag 65001, segid: 50001 encap: VXLAN
+192.168.20.10/32, ubest/mbest: 1/0
+    *via 10.2.100.1%default, [20/2000], 2d19h, bgp-65001, external,
+         tag 65002, segid: 50001 encap: VXLAN   &lt;- remote host via VIP</code></pre></div>
+
+        <button class="vrfy-cmd"><span class="prompt">LEAF1#</span> show fabric forwarding ip local-host-db vrf RED <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> run on the <em>leaf</em> that owns the endpoint. It shows the locally-attached host (<code>192.168.10.10</code>), its MAC, the SVI (<code>Vlan10</code>) and the physical port (<code>Eth1/5</code>). This is the source of the Type-2 route the leaf advertises into EVPN &mdash; if a host is missing here, it will never appear on remote VTEPs.</div><pre><code>HMM host IPv4 routing table information for VRF RED
+Status: *-valid, x-deleted, D-Duplicate, ...
+
+    Host              MAC Address     SVI     Flags     Physical Interface
+*   192.168.10.10/32  5254.00c0.1890  Vlan10  0x400201  Ethernet1/5</code></pre></div>
     </div>
 
     <div class="callout">
@@ -1411,7 +1517,7 @@ interface Ethernet1/1
     </div>
 
     <h2 id="wrap-up">13. Wrap-up</h2>
-    <p>When making the transition from virtual labs like this CML 9000v environment to physical NX-OS hardware (such as the Nexus 9300-EX/FX3/GX platforms), the core BGP and VXLAN configuration remains identical. The major physical difference will be the activation of the ASIC to enforce your lossless queuing, allowing the DCQCN control loops to engage at line rate. Mastering these multi-site concepts and deep-buffer traffic engineering prepares you to build the most resilient and performant data center architectures in the industry.</p>
+    <p>Over the course of this lab we built two independent VXLAN EVPN fabrics and stitched them into a single stretched Layer 2/Layer 3 service with Multi-Site, the architecture that lets you scale a data center by adding sites instead of enlarging one fragile blast radius, while the Border Gateway keeps flooding, route churn, and failures contained at the site edge. On top of that fabric we layered a RoCEv2 lossless class with DCQCN (PFC, ECN/WRED, and CNP), the same traffic-engineering discipline that makes a network trustworthy for storage, AI, and HPC workloads where a single dropped packet is catastrophic. The BGP and VXLAN control plane you configured here transfers verbatim to physical Nexus 9300-EX/FX3/GX hardware; the one real difference is that a true switching ASIC will enforce your no-drop queuing and let the DCQCN control loops engage at line rate. From here, look toward scaling out to more than two sites, adding vPC or ESI multihoming for host redundancy, and validating your lossless class under real congestion, the point where multi-site reach and QoS rigor combine to build the resilient, high-performance data centers the industry now demands.</p>
 
     </div><!-- /guide-main -->
     </div><!-- /guide-layout -->
@@ -2672,6 +2778,18 @@ interface Ethernet1/3
             b.classList.add('active');
             document.getElementById('tab-' + target).classList.add('active');
             window.scrollTo({ top: 0, behavior: 'auto' });
+        });
+    });
+</script>
+
+<script>
+    // Interactive verification cheat-sheet: click a command to reveal output + explanation
+    document.querySelectorAll('.vrfy-cmd').forEach(function (cmd) {
+        cmd.addEventListener('click', function () {
+            var out = cmd.nextElementSibling;
+            if (!out || !out.classList.contains('vrfy-out')) return;
+            var isOpen = out.classList.toggle('open');
+            cmd.classList.toggle('open', isOpen);
         });
     });
 </script>
