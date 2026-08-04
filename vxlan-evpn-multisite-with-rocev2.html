@@ -557,7 +557,13 @@
      <h2 id="intro">1. Introduction to Multi-Site</h2>
      <p>Most modern data centers run on <strong>VXLAN with BGP EVPN</strong>. VXLAN gives you a MAC-in-UDP overlay, so a Layer 2 segment can ride across a fully routed Layer 3 network, and BGP EVPN is the control plane that tells every VTEP (VXLAN Tunnel End Point) where all the MACs and IPs actually live. That split is powerful: tenants get their own address space, and the physical fabric underneath stays simple leaf-and-spine. The catch is that one big fabric is also one big blast radius. Broadcast, unknown-unicast and multicast (BUM) flooding, control-plane churn, and the occasional fat-fingered config all spread freely because nothing stops them at a boundary.</p>
      <p>That is the problem <strong>VXLAN EVPN Multi-Site</strong> is built to solve. Instead of one sprawling fabric, you run several smaller, independent ones and join them at a single, well-controlled hand-off. Each site keeps its own underlay IGP, its own BGP autonomous system, and its own overlay, and it handles its BUM flooding locally. The piece doing the stitching is the <strong>Border Gateway (BGW)</strong>. It sits at the edge of a site, terminates the local overlay, re-originates EVPN routes toward the far side, and rewrites the VXLAN next-hop so that failures, flooding, and route churn stop at the site edge instead of leaking across the whole network. You end up scaling out by adding sites, not by adding risk, and tenants still see stretched Layer 2 and Layer 3 as if it were one fabric.</p>
-     <p>We are going to build this from scratch. First we stand up two independent fabrics, <strong>DC1 (AS&nbsp;65001)</strong> and <strong>DC2 (AS&nbsp;65002)</strong>, then stitch them together back-to-back over a Data Center Interconnect (DCI) using two eBGP sessions: one IPv4 unicast session for the underlay and one L2VPN EVPN session for the overlay. Once traffic flows between sites, we push things further and build a <strong>RoCEv2 (DCQCN)</strong> lossless class on top of the same fabric, mixing PFC with ECN and WRED so that latency-sensitive RDMA traffic never has to drop a packet. Everything here is real Cisco NX-OS, copied verbatim, so you can follow along on Nexus 9000 gear or a lab and land on the exact same result.</p>
+     <p>Put plainly, a data center multi-site architecture is needed to provide:</p>
+     <ul>
+        <li><strong>Disaster recovery and business continuity</strong> &mdash; by stretching Layer 2/Layer 3 services across two or more geographically separate sites, workloads and their IP identity can fail over (or be actively load-shared) between locations. If one site is lost to a power, cooling, fiber, or natural-disaster event, applications keep running from the surviving site with minimal disruption, protecting RPO/RTO targets and keeping the business online.</li>
+        <li><strong>Fault isolation</strong> &mdash; each site runs its own independent underlay, BGP AS, and overlay, handling BUM flooding locally. The Border Gateway contains broadcast storms, control-plane churn, and configuration errors at the site edge, so a failure in one fabric does not propagate into the other.</li>
+        <li><strong>Centralized policy orchestration</strong> &mdash; tenants, VRFs, and segmentation policy are defined consistently and pushed across all sites from a single point of control, giving uniform security and connectivity everywhere without per-site drift.</li>
+     </ul>
+     <p>We are going to build this from scratch. First we stand up two independent fabrics, <strong>DC1 (AS&nbsp;65001)</strong> and <strong>DC2 (AS&nbsp;65002)</strong>, then stitch them together back-to-back over a Data Center Interconnect (DCI) using two eBGP sessions: one IPv4 unicast session for the underlay and one L2VPN EVPN session for the overlay. Once traffic flows between sites, we push things further and build a <strong>RoCEv2 (DCQCN)</strong> lossless class on top of the same fabric, mixing <strong>PFC</strong> (Priority Flow Control, a hop-by-hop pause that stops an upstream device from overrunning a full buffer) with <strong>ECN</strong> (Explicit Congestion Notification, which marks packets to signal congestion instead of dropping them) and <strong>WRED</strong> (Weighted Random Early Detection, the queue mechanism that does the ECN marking as a queue starts to fill) so that latency-sensitive <strong>RDMA</strong> (Remote Direct Memory Access, where one host writes directly into another host's memory with no CPU involvement) traffic never has to drop a packet. Everything here is real Cisco NX-OS, copied verbatim, so you can follow along on Nexus 9000 gear or a lab and land on the exact same result.</p>
 
 
     <h2 id="bgw-explained">2. The Border Gateway Explained</h2>
@@ -593,7 +599,7 @@
 
             <!-- ===== Interface labels ===== -->
             <g font-size="8.5" fill="#1b241c" font-family="monospace">
-                <text x="316" y="52">E1/3</text><text x="444" y="52" text-anchor="end">E1/3</text>
+                <text x="326" y="52">E1/3</text><text x="434" y="52" text-anchor="end">E1/3</text>
                 <text x="278" y="76">E1/1</text><text x="196" y="118">E1/3</text>
                 <text x="150" y="180">E1/1</text><text x="196" y="180">E1/2</text>
                 <text x="118" y="205">E1/1</text><text x="253" y="205">E1/1</text>
@@ -1277,7 +1283,7 @@ Status: *-valid, x-deleted, D-Duplicate, ...
     </ul>
 
     <div class="callout warning">
-        <strong>⚠ Nexus 9000v Caveat</strong>
+        <strong>Nexus 9000v Caveat</strong>
         The Nexus 9000v (virtual) accepts these QoS/PFC/ECN commands but does <strong>NOT</strong> enforce them in the data plane, since it has no switching ASIC. The configuration is correct and deployable for physical hardware (Nexus 9200 / 9300-EX/FX/GX / 9500); on the 9000v CML lab it validates syntax and control-plane only.
     </div>
 
@@ -1320,10 +1326,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
@@ -1331,7 +1346,14 @@ system qos
   service-policy type queuing output QOS_EGRESS_PORT</code></pre>
     </div>
 
-    <p>With the global definitions in place, we bind PFC behavior to the specific interfaces participating in the transit path. This block is repeated on each RoCE-path interface.</p>
+    <div class="callout warning">
+        <strong>Two rules the egress queuing policy must obey</strong>
+        Note that the Nexus 9000 defaults to <strong>4q mode</strong> (queues q0&ndash;q3); this design needs qos-groups up to 7, so the fabric must first be switched to <strong>8q mode</strong> (the network-qos and queuing policies above do exactly that). Once in 8q mode, NX-OS enforces both of these rules, and violating either throws an error when you attach the policy (as per the <a href="https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/6-x/qos/configuration/guide/b_Cisco_Nexus_9000_Series_NX-OS_Quality_of_Service_Configuration_Guide/using_modular_qos_cli.html#concept_E572527C49DE4CA6BF1BC1711FA97895" target="_blank" rel="noopener">Cisco QoS whitepaper</a>):
+        <ul>
+            <li><strong>List all eight queues.</strong> The queuing policy must reference every system class-map (<code>c-out-8q-q1</code> through <code>c-out-8q-q7</code> plus <code>c-out-8q-q-default</code>), you cannot define just the queues you care about. The unused queues (q1, q2, q4, q5, q6 here) are still present with <code>bandwidth remaining percent 0</code>. Omit them and you get: <em>"Queuing policy map must have exactly 4 or 8 internally created class-maps when applied to a target."</em></li>
+            <li><strong>A priority queue takes no bandwidth statement.</strong> The strict-priority class (<code>c-out-8q-q7</code>, our CNP queue) carries <code>priority level 1</code> only. Adding <code>bandwidth remaining percent</code> to it collides with the priority scheduler and throws: <em>"This Policy-map class has another action that cannot coexist."</em> The <code>bandwidth remaining percent</code> values on the non-priority queues must sum to 100 (here 80 on q3 + 20 on default).</li>
+        </ul>
+    </div>
 
     <div class="code-block-wrapper">
         <button class="copy-btn">Copy</button>
@@ -1711,10 +1733,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
@@ -1902,10 +1933,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
@@ -1999,10 +2039,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
@@ -2201,10 +2250,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
@@ -2397,10 +2455,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
@@ -2491,10 +2558,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
@@ -2688,10 +2764,19 @@ policy-map type network-qos qos_network
 policy-map type queuing QOS_EGRESS_PORT
   class type queuing c-out-8q-q7
     priority level 1
+  class type queuing c-out-8q-q6
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q5
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q4
     bandwidth remaining percent 0
   class type queuing c-out-8q-q3
     bandwidth remaining percent 80
     random-detect minimum-threshold 150 kbytes maximum-threshold 3000 kbytes drop-probability 7 weight 0 ecn
+  class type queuing c-out-8q-q2
+    bandwidth remaining percent 0
+  class type queuing c-out-8q-q1
+    bandwidth remaining percent 0
   class type queuing c-out-8q-q-default
     bandwidth remaining percent 20
 system qos
