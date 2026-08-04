@@ -559,9 +559,9 @@
      <p>That is the problem <strong>VXLAN EVPN Multi-Site</strong> is built to solve. Instead of one sprawling fabric, you run several smaller, independent ones and join them at a single, well-controlled hand-off. Each site keeps its own underlay IGP, its own BGP autonomous system, and its own overlay, and it handles its BUM flooding locally. The piece doing the stitching is the <strong>Border Gateway (BGW)</strong>. It sits at the edge of a site, terminates the local overlay, re-originates EVPN routes toward the far side, and rewrites the VXLAN next-hop so that failures, flooding, and route churn stop at the site edge instead of leaking across the whole network. You end up scaling out by adding sites, not by adding risk, and tenants still see stretched Layer 2 and Layer 3 as if it were one fabric.</p>
      <p>Put plainly, a data center multi-site architecture is needed to provide:</p>
      <ul>
-        <li><strong>Disaster recovery and business continuity</strong> &mdash; by stretching Layer 2/Layer 3 services across two or more geographically separate sites, workloads and their IP identity can fail over (or be actively load-shared) between locations. If one site is lost to a power, cooling, fiber, or natural-disaster event, applications keep running from the surviving site with minimal disruption, protecting RPO/RTO targets and keeping the business online.</li>
-        <li><strong>Fault isolation</strong> &mdash; each site runs its own independent underlay, BGP AS, and overlay, handling BUM flooding locally. The Border Gateway contains broadcast storms, control-plane churn, and configuration errors at the site edge, so a failure in one fabric does not propagate into the other.</li>
-        <li><strong>Centralized policy orchestration</strong> &mdash; tenants, VRFs, and segmentation policy are defined consistently and pushed across all sites from a single point of control, giving uniform security and connectivity everywhere without per-site drift.</li>
+        <li><strong>Disaster recovery and business continuity</strong>: by stretching Layer 2/Layer 3 services across two or more geographically separate sites, workloads and their IP identity can fail over (or be actively load-shared) between locations. If one site is lost to a power, cooling, fiber, or natural-disaster event, applications keep running from the surviving site with minimal disruption, protecting RPO/RTO targets and keeping the business online.</li>
+        <li><strong>Fault isolation</strong>: each site runs its own independent underlay, BGP AS, and overlay, handling BUM flooding locally. The Border Gateway contains broadcast storms, control-plane churn, and configuration errors at the site edge, so a failure in one fabric does not propagate into the other.</li>
+        <li><strong>Centralized policy orchestration</strong>: tenants, VRFs, and segmentation policy are defined consistently and pushed across all sites from a single point of control, giving uniform security and connectivity everywhere without per-site drift.</li>
      </ul>
      <p>We are going to build this from scratch. First we stand up two independent fabrics, <strong>DC1 (AS&nbsp;65001)</strong> and <strong>DC2 (AS&nbsp;65002)</strong>, then stitch them together back-to-back over a Data Center Interconnect (DCI) using two eBGP sessions: one IPv4 unicast session for the underlay and one L2VPN EVPN session for the overlay. Once traffic flows between sites, we push things further and build a <strong>RoCEv2 (DCQCN)</strong> lossless class on top of the same fabric, mixing <strong>PFC</strong> (Priority Flow Control, a hop-by-hop pause that stops an upstream device from overrunning a full buffer) with <strong>ECN</strong> (Explicit Congestion Notification, which marks packets to signal congestion instead of dropping them) and <strong>WRED</strong> (Weighted Random Early Detection, the queue mechanism that does the ECN marking as a queue starts to fill) so that latency-sensitive <strong>RDMA</strong> (Remote Direct Memory Access, where one host writes directly into another host's memory with no CPU involvement) traffic never has to drop a packet. Everything here is real Cisco NX-OS, copied verbatim, so you can follow along on Nexus 9000 gear or a lab and land on the exact same result.</p>
 
@@ -1182,7 +1182,7 @@ nve1      10.2.1.22      Up    CP        2d19h   52f8.3617.1b08
 nve1      10.2.100.1     Up    CP        2d19h   0200.0a02.6401</code></pre></div>
 
         <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show bgp l2vpn evpn summary <span class="badge">output</span><span class="caret">&#9654;</span></button>
-        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> two EVPN peers &mdash; the local spine RR <code>10.1.0.1</code> (type <code>I</code> / iBGP, AS 65001) and the remote BGW <code>10.2.0.22</code> (type <code>E</code> / eBGP, AS 65002). A numeric PfxRcd (not <code>Idle/Active</code>) means the session is Established and exchanging routes. The per-type breakdown shows Type-2 (MAC/IP), Type-3 (IMET) and Type-5 (prefix) routes flowing.</div><pre><code>BGP router identifier 10.1.0.21, local AS number 65001
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> two EVPN peers: the local spine RR <code>10.1.0.1</code> (type <code>I</code> / iBGP, AS 65001) and the remote BGW <code>10.2.0.22</code> (type <code>E</code> / eBGP, AS 65002). A numeric PfxRcd (not <code>Idle/Active</code>) means the session is Established and exchanging routes. The per-type breakdown shows Type-2 (MAC/IP), Type-3 (IMET) and Type-5 (prefix) routes flowing.</div><pre><code>BGP router identifier 10.1.0.21, local AS number 65001
 BGP table version is 1171, L2VPN EVPN config peers 2, capable peers 2
 
 Neighbor    V    AS   MsgRcvd MsgSent TblVer InQ OutQ Up/Down  State/PfxRcd
@@ -1196,7 +1196,7 @@ Neighbor    T    AS Type-1 Type-2 Type-3 Type-4 Type-5
         <div class="vrfy-group">Control plane &middot; re-origination + next-hop rewrite</div>
 
         <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show bgp l2vpn evpn <span class="badge">output</span><span class="caret">&#9654;</span></button>
-        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> in the L2VNI 10010 table the same MAC set appears three ways &mdash; <code>i</code> (iBGP, from a local leaf 10.1.1.11), <code>l</code> (locally originated, 10.1.1.21), and <code>e</code> (eBGP, from remote BGW 10.2.1.22). Remote Type-5 prefixes (e.g. 192.168.20.0) arrive with next-hop <code>10.2.100.1</code> &mdash; the remote MS-VIP &mdash; proving the <strong>next-hop rewrite</strong> worked. Output trimmed to the illustrative RDs.</div><pre><code>Route Distinguisher: 10.1.0.21:32777    (L2VNI 10010)
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> in the L2VNI 10010 table the same MAC set appears three ways: <code>i</code> (iBGP, from a local leaf 10.1.1.11), <code>l</code> (locally originated, 10.1.1.21), and <code>e</code> (eBGP, from remote BGW 10.2.1.22). Remote Type-5 prefixes (e.g. 192.168.20.0) arrive with next-hop <code>10.2.100.1</code> (the remote MS-VIP), proving the <strong>next-hop rewrite</strong> worked. Output trimmed to the illustrative RDs.</div><pre><code>Route Distinguisher: 10.1.0.21:32777    (L2VNI 10010)
 *&gt;i[2]:...[5254.00c0.1890]:[0.0.0.0]/216
                       10.1.1.11        100      0 i        &lt;- local leaf (iBGP)
 *&gt;l[2]:...[52be.8479.1b08]:[0.0.0.0]/216
@@ -1215,7 +1215,7 @@ Route Distinguisher: 10.1.0.21:4    (L3VNI 50001)
                       10.1.1.21    0   100      0 ?</code></pre></div>
 
         <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show bgp l2vpn evpn vni-id 10010 <span class="badge">output</span><span class="caret">&#9654;</span></button>
-        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the same view as above but scoped to a single L2VNI &mdash; the fastest way to confirm a specific segment is stitched. You want all three path types present: local leaf (<code>i</code>), self (<code>l</code>), and the remote BGW (<code>e</code>, AS 65002). Swap <code>10010</code> for <code>10020/10030/10040</code> to check the other segments.</div><pre><code>Route Distinguisher: 10.1.0.21:32777    (L2VNI 10010)
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the same view as above but scoped to a single L2VNI, the fastest way to confirm a specific segment is stitched. You want all three path types present: local leaf (<code>i</code>), self (<code>l</code>), and the remote BGW (<code>e</code>, AS 65002). Swap <code>10010</code> for <code>10020/10030/10040</code> to check the other segments.</div><pre><code>Route Distinguisher: 10.1.0.21:32777    (L2VNI 10010)
 *&gt;i[2]:...[5254.00c0.1890]:[0.0.0.0]/216
                       10.1.1.11        100      0 i
 *&gt;l[2]:...[52be.8479.1b08]:[0.0.0.0]/216
@@ -1229,19 +1229,49 @@ Route Distinguisher: 10.1.0.21:4    (L3VNI 50001)
 *&gt;l[3]:[0]:[32]:[10.1.1.21]/88   10.1.1.21    100  32768 i
 *&gt;e[3]:[0]:[32]:[10.2.1.22]/88   10.2.1.22          0 65002 i</code></pre></div>
 
-        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show l2route evpn mac all <span class="badge note">note</span><span class="caret">&#9654;</span></button>
-        <div class="vrfy-out"><div class="vrfy-explain"><strong>Purpose:</strong> the local L2RIB view of learned MACs per L2VNI, independent of BGP. Use it to confirm a host MAC was actually programmed into the MAC table (Prod=BGP for remotely learned, Local for directly attached) after you see it in <code>show bgp l2vpn evpn</code>.</div><pre><code>(no capture from this lab run &mdash; run on a leaf/BGW to
- see per-VNI MACs and their producer: Local vs BGP)</code></pre></div>
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show l2route evpn mac all <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the local L2RIB view of learned MACs per topology (L2VNI), independent of BGP. Locally attached leaf MACs show <code>Prod BGP</code> via a local VTEP (e.g. <code>10.1.1.11</code> in VNI 10 with Label 10010). Crucially, the <em>remote-site</em> hosts (VNI 20 &amp; 40) are learned via the remote MS-VIP <code>10.2.100.1</code> and carry the <code>(Flags: RS)</code> = <strong>Remote Site</strong> tag, and that RS flag is the fingerprint of a Multi-Site-stitched MAC. The <code>Rmac</code> entries in the L3VNI topologies (3900/3901) are the per-VTEP router MACs used for symmetric IRB.</div><pre><code>Flags -(Rmac):Router MAC (Stt):Static (L):Local (R):Remote (Dup):Duplicate
+(Spl):Split (Rcv):Recv (Nho):NH-Override (Dum):Dummy ...
+NH Flags- (RS): Remote Site Flag  (Asy): Asymmetric VNI
+
+Topology  Mac Address    Prod  Flags        Seq  Next-Hops
+--------- -------------- ----- ------------ ---- --------------------------
+10        5254.00c0.1890 BGP   SplRcv       0    10.1.1.11 (Label: 10010)
+10        52be.8479.1b08 VXLAN Stt,Nho,Dum  0    10.1.1.21
+20        5254.002a.d74b BGP   SplRcv       0    10.2.100.1 (Label: 10020)(Flags: RS)
+20        52be.8479.1b08 VXLAN Stt,Nho,Dum  0    10.1.1.21
+30        5254.00d8.8862 BGP   SplRcv       0    10.1.1.12 (Label: 10030)
+30        52be.8479.1b08 VXLAN Stt,Nho,Dum  0    10.1.1.21
+40        5254.0020.1f2e BGP   SplRcv       0    10.2.100.1 (Label: 10040)(Flags: RS)
+40        52be.8479.1b08 VXLAN Stt,Nho,Dum  0    10.1.1.21
+3900      0200.0a02.6401 VXLAN Rmac         0    10.2.100.1
+3900      521f.1d54.1b08 VXLAN Rmac         0    10.1.1.12
+3900      529e.b837.1b08 VXLAN Rmac         0    10.1.1.11
+3900      52be.8479.1b08 VXLAN Stt,Nho,Dum  0    10.1.1.21
+3900      52f8.3617.1b08 VXLAN Rmac         0    10.2.1.22
+3901      0200.0a02.6401 VXLAN Rmac         0    10.2.100.1
+3901      521f.1d54.1b08 VXLAN Rmac         0    10.1.1.12
+3901      529e.b837.1b08 VXLAN Rmac         0    10.1.1.11
+3901      52be.8479.1b08 VXLAN Stt,Nho,Dum  0    10.1.1.21
+3901      52f8.3617.1b08 VXLAN Rmac         0    10.2.1.22</code></pre></div>
 
         <div class="vrfy-group">Underlay across DCI &middot; eBGP IPv4</div>
 
-        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show ip bgp summary <span class="badge note">note</span><span class="caret">&#9654;</span></button>
-        <div class="vrfy-out"><div class="vrfy-explain"><strong>Purpose:</strong> confirms the DCI <em>underlay</em> eBGP IPv4 session (neighbor <code>172.16.1.1</code>, AS 65002) is Established. This is the session that carries the loopbacks/VIP between BGWs &mdash; it must be up <em>before</em> the overlay EVPN session can form over the loopbacks.</div><pre><code>(no capture &mdash; expect neighbor 172.16.1.1 remote-as 65002
- Established, with the remote loopbacks/VIP in PfxRcd)</code></pre></div>
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show ip bgp summary <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the DCI <em>underlay</em> eBGP IPv4 session to neighbor <code>172.16.1.1</code> (AS 65002) is Established, the State/PfxRcd column shows <code>4</code> (a number, not <code>Idle/Active/Connect</code>), meaning it received 4 prefixes: the remote BGW's loopbacks and its MS-VIP. This session must be up <em>before</em> the overlay EVPN session can form over those loopbacks.</div><pre><code>BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.1.0.21, local AS number 65001
+BGP table version is 14, IPv4 Unicast config peers 1, capable peers 1
+7 network entries and 8 paths using 2652 bytes of memory
 
-        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show ip route 10.2.100.1 <span class="badge note">note</span><span class="caret">&#9654;</span></button>
-        <div class="vrfy-out"><div class="vrfy-explain"><strong>Purpose:</strong> the single most important underlay check &mdash; does the local BGW have a route to the <em>remote</em> MS-VIP? If this is missing, the cross-site NVE tunnel can never form. Nine times out of ten a missing route here traces back to a loopback that lost its <code>tag 54321</code>.</div><pre><code>(no capture &mdash; expect a /32 to 10.2.100.1 via 172.16.1.1
- learned by eBGP over the DCI)</code></pre></div>
+Neighbor     V    AS  MsgRcvd MsgSent TblVer InQ OutQ Up/Down  State/PfxRcd
+172.16.1.1   4 65002    4215    4213     14   0    0   2d22h   4</code></pre></div>
+
+        <button class="vrfy-cmd"><span class="prompt">BGW1#</span> show ip route 10.2.100.1 <span class="badge">output</span><span class="caret">&#9654;</span></button>
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> the single most important underlay check: does the local BGW have a route to the <em>remote</em> MS-VIP? Here <code>10.2.100.1/32</code> resolves <code>via 172.16.1.1</code> (the DCI link), learned by <code>bgp-65001, external</code>, tag 65002, i.e. across the eBGP DCI session, exactly as intended. If this route is missing, the cross-site NVE tunnel can never form; nine times out of ten that traces back to a loopback that lost its <code>tag 54321</code>.</div><pre><code>IP Route Table for VRF "default"
+'*' denotes best ucast next-hop
+
+10.2.100.1/32, ubest/mbest: 1/0
+    *via 172.16.1.1, [20/0], 2d22h, bgp-65001, external, tag 65002</code></pre></div>
 
         <div class="vrfy-group">Tenant routing &middot; symmetric IRB</div>
 
@@ -1260,7 +1290,7 @@ Route Distinguisher: 10.1.0.21:4    (L3VNI 50001)
          tag 65002, segid: 50001 encap: VXLAN   &lt;- remote host via VIP</code></pre></div>
 
         <button class="vrfy-cmd"><span class="prompt">LEAF1#</span> show fabric forwarding ip local-host-db vrf RED <span class="badge">output</span><span class="caret">&#9654;</span></button>
-        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> run on the <em>leaf</em> that owns the endpoint. It shows the locally-attached host (<code>192.168.10.10</code>), its MAC, the SVI (<code>Vlan10</code>) and the physical port (<code>Eth1/5</code>). This is the source of the Type-2 route the leaf advertises into EVPN &mdash; if a host is missing here, it will never appear on remote VTEPs.</div><pre><code>HMM host IPv4 routing table information for VRF RED
+        <div class="vrfy-out"><div class="vrfy-explain"><strong>What to look for:</strong> run on the <em>leaf</em> that owns the endpoint. It shows the locally-attached host (<code>192.168.10.10</code>), its MAC, the SVI (<code>Vlan10</code>) and the physical port (<code>Eth1/5</code>). This is the source of the Type-2 route the leaf advertises into EVPN, and if a host is missing here, it will never appear on remote VTEPs.</div><pre><code>HMM host IPv4 routing table information for VRF RED
 Status: *-valid, x-deleted, D-Duplicate, ...
 
     Host              MAC Address     SVI     Flags     Physical Interface
